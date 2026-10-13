@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weer</title>
+<meta name="theme-color" content="#2f6fb5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Weer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg1:#2f6fb5; --bg2:#7fb6e6;
+  --card:rgba(255,255,255,.14); --card-b:rgba(255,255,255,.18);
+  --text:#fff; --muted:rgba(255,255,255,.72); --faint:rgba(255,255,255,.45);
+  --rain:#6ec3ff;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,var(--bg1) 0%,var(--bg2) 100%)}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text);
+  background:var(--bg1);
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:contain;
+}
+.wrap{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 28px)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+/* top bar */
+.topbar{display:flex;justify-content:space-between;align-items:center;min-height:40px}
+.iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--card);border:1px solid var(--card-b);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.iconbtn svg{width:20px;height:20px}
+.iconbtn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* hero */
+.hero{text-align:center;padding:10px 0 26px}
+.place{font-size:30px;font-weight:500;letter-spacing:.2px;display:flex;align-items:center;justify-content:center;gap:6px}
+.place svg{width:16px;height:16px;opacity:.85}
+.temp{font-size:96px;font-weight:200;line-height:1;margin:4px 0 2px 22px}
+.cond{font-size:20px;font-weight:500}
+.hilo{font-size:18px;font-weight:500;margin-top:4px}
+.updated{font-size:12px;color:var(--faint);margin-top:8px}
+
+/* cards */
+.card{background:var(--card);border:1px solid var(--card-b);border-radius:18px;padding:14px 16px;margin-bottom:12px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.card h2{white-space:nowrap;overflow:hidden;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);display:flex;align-items:center;gap:6px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:10px}
+.card h2 svg{width:14px;height:14px}
+.summary{font-size:15px;line-height:1.35;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:10px}
+
+/* hourly */
+.hours{display:flex;overflow-x:auto;gap:4px;scrollbar-width:none;margin:0 -6px}
+.hours::-webkit-scrollbar{display:none}
+.hour{flex:0 0 auto;min-width:54px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;padding:2px 4px}
+.hour .t{font-size:14px;font-weight:600}
+.hour .ic{font-size:26px;line-height:30px;height:30px}
+.hour .p{font-size:11px;font-weight:600;color:var(--rain);height:13px}
+.hour .v{font-size:18px;font-weight:500}
+.hour.sun .v{font-size:13px;font-weight:600;padding-top:4px}
+
+/* rain 2h */
+.rainchart{display:flex;align-items:flex-end;gap:2px;height:84px;padding-top:4px;position:relative}
+.rainchart .bar{flex:1;background:var(--rain);border-radius:3px 3px 0 0;min-height:2px;opacity:.95}
+.rainchart .bar.zero{background:rgba(255,255,255,.18)}
+.rainlines{position:absolute;inset:4px 0 0 0;pointer-events:none}
+.rainlines div{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.18);font-size:9px;color:var(--faint);text-align:right}
+.rainaxis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
+.rainsrc{font-size:11px;color:var(--faint);margin-top:6px}
+
+/* daily */
+.day{display:grid;grid-template-columns:78px 30px 36px 32px 1fr 32px;align-items:center;gap:6px;padding:9px 0;border-top:1px solid rgba(255,255,255,.12)}
+.day:first-of-type{border-top:0}
+.day .d{font-size:17px;font-weight:500}
+.day .ic{font-size:24px;text-align:center}
+.day .p{font-size:11px;font-weight:600;color:var(--rain);text-align:center}
+.day .lo{color:var(--muted);text-align:right;font-size:17px;font-weight:500}
+.day .hi{font-size:17px;font-weight:500;text-align:right}
+.range{height:5px;border-radius:3px;background:rgba(0,0,0,.18);position:relative}
+.range i{position:absolute;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,#8fd3ff,#a5e57a,#ffd25e,#ff9a4a)}
+.range b{position:absolute;top:-2px;width:9px;height:9px;border-radius:50%;background:#fff;border:2px solid rgba(0,0,0,.25);margin-left:-4px}
+.daydetail{grid-column:1/-1;font-size:13px;color:var(--muted);padding:2px 0 4px;display:none}
+.day.open .daydetail{display:block}
+
+/* radar */
+.radarwrap{position:relative;border-radius:12px;overflow:hidden;height:300px;background:#1b2430}
+#map{position:absolute;inset:0}
+.radarwrap.full{position:fixed;inset:0;z-index:50;border-radius:0;height:auto}
+.radarctl{position:absolute;left:8px;right:8px;bottom:8px;z-index:500;display:flex;align-items:center;gap:8px;background:rgba(20,28,40,.75);border-radius:12px;padding:6px 10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.radarctl input{flex:1;accent-color:#6ec3ff}
+.radarctl .rt{font-size:13px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.radarctl button svg{width:22px;height:22px}
+.radarfs{position:absolute;top:8px;right:8px;z-index:500;width:36px;height:36px;border-radius:10px;background:rgba(20,28,40,.75);display:grid;place-items:center}
+.radarfs svg{width:18px;height:18px}
+.radarwrap.full .radarctl{bottom:calc(env(safe-area-inset-bottom) + 12px)}
+.radarwrap.full .radarfs{top:calc(env(safe-area-inset-top) + 12px)}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,.6)!important}
+.leaflet-bottom.leaflet-right{bottom:52px}
+.me{width:14px;height:14px;border-radius:50%;background:#2f8cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,140,255,.25)}
+
+/* tiles */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+.grid .card{margin:0;min-height:150px;display:flex;flex-direction:column}
+.big{font-size:32px;font-weight:500;line-height:1.1}
+.sub{font-size:14px;margin-top:4px}
+.note{font-size:13px;color:var(--muted);margin-top:auto;padding-top:8px;line-height:1.3}
+.meter{height:5px;border-radius:3px;margin:10px 0 2px;position:relative}
+.meter b{position:absolute;top:-2px;width:9px;height:9px;border-radius:50%;background:#fff;border:2px solid rgba(0,0,0,.3);margin-left:-4px}
+.uvm{background:linear-gradient(90deg,#3ec74a,#e6d83a,#f39b2b,#e5413a,#9c4bd1)}
+.aqm{background:linear-gradient(90deg,#50f0e6,#50ccaa,#f0e641,#ff5050,#960032,#7d2181)}
+.compass{position:relative;width:96px;height:96px;margin:4px auto 0}
+.compass svg{width:100%;height:100%}
+.compass .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.compass .c b{font-size:20px;font-weight:600;line-height:1}
+.compass .c span{font-size:10px;color:var(--muted)}
+
+/* sheet */
+.sheet{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.35);display:none}
+.sheet.open{display:block}
+.panel{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top) + 40px);max-width:560px;margin:0 auto;background:#16202c;border-radius:18px 18px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 16px);overflow:auto}
+.panel h3{font-size:22px;font-weight:600;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.search{width:100%;padding:12px 14px;border-radius:12px;border:0;background:rgba(255,255,255,.1);color:#fff;font-size:16px;outline:none}
+.search::placeholder{color:rgba(255,255,255,.5)}
+.plist{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.pitem{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.07);text-align:left;width:100%}
+.pitem .n{flex:1}
+.pitem .n div{font-size:16px;font-weight:600}
+.pitem .n small{font-size:12px;color:rgba(255,255,255,.6)}
+.pitem .x{opacity:.6;padding:4px 6px;font-size:18px}
+.pitem svg{width:18px;height:18px;flex:0 0 auto}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);margin:18px 0 0}
+
+.msg{text-align:center;padding:60px 20px;font-size:16px;line-height:1.5}
+.msg button{margin-top:16px;padding:10px 18px;border-radius:12px;background:var(--card);border:1px solid var(--card-b)}
+.foot{text-align:center;font-size:11px;color:var(--faint);margin-top:8px;line-height:1.6}
+.foot a{color:inherit}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <button class="iconbtn" id="btnPlaces" aria-label="Plaatsen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <button class="iconbtn" id="btnRefresh" aria-label="Vernieuwen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </div>
+
+  <div id="status" class="msg">Weer ophalen…</div>
+
+  <main id="main" class="hidden">
+    <section class="hero">
+      <div class="place" id="place"></div>
+      <div class="temp" id="temp"></div>
+      <div class="cond" id="cond"></div>
+      <div class="hilo" id="hilo"></div>
+      <div class="updated" id="updated"></div>
+    </section>
+
+    <section class="card" id="rainCard">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg>Neerslag komende 2 uur</h2>
+      <div class="summary" id="rainSummary"></div>
+      <div class="rainchart" id="rainChart"></div>
+      <div class="rainaxis" id="rainAxis"></div>
+      <div class="rainsrc" id="rainSrc"></div>
+    </section>
+
+    <section class="card">
+      <div class="summary" id="daySummary"></div>
+      <div class="hours" id="hours"></div>
+    </section>
+
+    <section class="card">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>10-daagse verwachting</h2>
+      <div id="days"></div>
+    </section>
+
+    <section class="card">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12l6-4"/></svg>Regenradar</h2>
+      <div class="radarwrap" id="radarWrap">
+        <div id="map"></div>
+        <button class="radarfs" id="radarFs" aria-label="Volledig scherm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button>
+        <div class="radarctl">
+          <button id="radarPlay" aria-label="Afspelen"></button>
+          <input type="range" id="radarSlider" min="0" max="0" value="0">
+          <span class="rt" id="radarTime">--:--</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid" id="tiles"></div>
+
+    <div class="foot">
+      Data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (o.a. KNMI Harmonie),
+      radar: <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>,
+      neerslag 2 uur: Buienradar
+    </div>
+  </main>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="panel">
+    <h3>Plaatsen <button class="iconbtn" id="btnClose" aria-label="Sluiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></h3>
+    <input class="search" id="search" type="search" placeholder="Zoek een plaats" autocomplete="off">
+    <div class="plist" id="results"></div>
+    <div class="label">Jouw plaatsen</div>
+    <div class="plist" id="saved"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- WMO weercodes ---------- */
+const WMO = {
+  0:["Onbewolkt","☀️","🌙","clear"], 1:["Overwegend zonnig","🌤️","🌙","clear"],
+  2:["Half bewolkt","⛅","☁️","cloud"], 3:["Bewolkt","☁️","☁️","cloud"],
+  45:["Mist","🌫️","🌫️","fog"], 48:["Rijpmist","🌫️","🌫️","fog"],
+  51:["Lichte motregen","🌦️","🌧️","rain"], 53:["Motregen","🌦️","🌧️","rain"], 55:["Dichte motregen","🌧️","🌧️","rain"],
+  56:["Ijzel (motregen)","🌧️","🌧️","rain"], 57:["Ijzel","🌧️","🌧️","rain"],
+  61:["Lichte regen","🌦️","🌧️","rain"], 63:["Regen","🌧️","🌧️","rain"], 65:["Zware regen","🌧️","🌧️","rain"],
+  66:["Ijzel","🌧️","🌧️","rain"], 67:["Zware ijzel","🌧️","🌧️","rain"],
+  71:["Lichte sneeuw","🌨️","🌨️","snow"], 73:["Sneeuw","🌨️","🌨️","snow"], 75:["Zware sneeuw","❄️","❄️","snow"], 77:["Sneeuwkorrels","🌨️","🌨️","snow"],
+  80:["Lichte buien","🌦️","🌧️","rain"], 81:["Buien","🌧️","🌧️","rain"], 82:["Zware buien","⛈️","⛈️","rain"],
+  85:["Sneeuwbuien","🌨️","🌨️","snow"], 86:["Zware sneeuwbuien","❄️","❄️","snow"],
+  95:["Onweer","⛈️","⛈️","storm"], 96:["Onweer met hagel","⛈️","⛈️","storm"], 99:["Zwaar onweer met hagel","⛈️","⛈️","storm"]
+};
+const wmo = c => WMO[c] || ["Onbekend","🌡️","🌡️","cloud"];
+const icon = (c, day) => { const w = wmo(c); return day === 0 ? w[2] : w[1]; };
+
+const THEMES = {
+  clear:[["#2f6fb5","#7fb6e6"],["#0b1834","#2c3f6e"]],
+  cloud:[["#5d7088","#9aabbd"],["#1c2430","#3a4657"]],
+  rain:[["#46566a","#7b8a9b"],["#111923","#2c3949"]],
+  snow:[["#7f97b2","#c9d6e4"],["#24303f","#4a5a6e"]],
+  fog:[["#7c838d","#b2b8bf"],["#262b31","#474e57"]],
+  storm:[["#2a2c40","#4b4f6b"],["#141522","#2e3048"]]
+};
+function setTheme(code, isDay){
+  const t = THEMES[wmo(code)[3]][isDay ? 0 : 1];
+  const r = document.documentElement.style;
+  r.setProperty("--bg1", t[0]); r.setProperty("--bg2", t[1]);
+  document.querySelector('meta[name="theme-color"]').content = t[0];
+}
+
+/* ---------- helpers ---------- */
+const pad = n => String(n).padStart(2,"0");
+const hm = iso => iso.slice(11,16);
+const dateOf = iso => { const [y,m,d] = iso.slice(0,10).split("-").map(Number); return new Date(y,m-1,d); };
+const dayName = (iso, i) => i === 0 ? "Vandaag" : dateOf(iso).toLocaleDateString("nl-NL",{weekday:"short"}).replace(".","").replace(/^./, s => s.toUpperCase());
+const R = n => Math.round(n);
+const DIRS = ["N","NNO","NO","ONO","O","OZO","ZO","ZZO","Z","ZZW","ZW","WZW","W","WNW","NW","NNW"];
+const dirName = d => DIRS[Math.round(d / 22.5) % 16];
+const bft = kmh => [1,6,12,20,29,39,50,62,75,89,103,118].findIndex(x => kmh < x) === -1 ? 12 : [1,6,12,20,29,39,50,62,75,89,103,118].findIndex(x => kmh < x);
+const BFT_TXT = ["Windstil","Zwak","Zwak","Matig","Matig","Vrij krachtig","Krachtig","Hard","Stormachtig","Storm","Zware storm","Zeer zware storm","Orkaan"];
+function uvTxt(u){ return u < 3 ? "Laag" : u < 6 ? "Matig" : u < 8 ? "Hoog" : u < 11 ? "Zeer hoog" : "Extreem"; }
+function aqTxt(a){ return a <= 20 ? "Goed" : a <= 40 ? "Redelijk" : a <= 60 ? "Matig" : a <= 80 ? "Slecht" : a <= 100 ? "Zeer slecht" : "Extreem slecht"; }
+async function getJSON(url, ms = 12000){
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+  try{ const r = await fetch(url, {signal:ctl.signal}); if(!r.ok) throw new Error(r.status); return await r.json(); }
+  finally{ clearTimeout(t); }
+}
+async function getText(url, ms = 6000){
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+  try{ const r = await fetch(url, {signal:ctl.signal}); if(!r.ok) throw new Error(r.status); return await r.text(); }
+  finally{ clearTimeout(t); }
+}
+
+/* ---------- locatie ---------- */
+let current = store.get("weer.active", null);   // {lat, lon, name, gps:true|false}
+let saved = store.get("weer.saved", []);
+
+function gps(){
+  return new Promise((res, rej) => {
+    if(!navigator.geolocation) return rej(new Error("Geen locatie beschikbaar"));
+    navigator.geolocation.getCurrentPosition(
+      p => res({lat:p.coords.latitude, lon:p.coords.longitude}),
+      e => rej(e),
+      {enableHighAccuracy:true, timeout:12000, maximumAge:5*60*1000}
+    );
+  });
+}
+async function placeName(lat, lon){
+  try{
+    const j = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=nl`, 6000);
+    return j.city || j.locality || j.principalSubdivision || "Mijn locatie";
+  }catch(e){ return "Mijn locatie"; }
+}
+
+/* ---------- data ophalen ---------- */
+function forecastURL(lat, lon){
+  const p = new URLSearchParams({
+    latitude:lat.toFixed(4), longitude:lon.toFixed(4), timezone:"auto", forecast_days:"10",
+    current:"temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,dew_point_2m",
+    hourly:"temperature_2m,precipitation_probability,precipitation,weather_code,is_day,uv_index,visibility",
+    daily:"weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant",
+    minutely_15:"precipitation", forecast_minutely_15:"12"
+  });
+  return "https://api.open-meteo.com/v1/forecast?" + p;
+}
+async function buienradar(lat, lon){
+  const t = await getText(`https://gpsgadget.buienradar.nl/data/raintext?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`);
+  const rows = t.trim().split(/\r?\n/).map(l => l.split("|")).filter(a => a.length === 2);
+  if(rows.length < 6) throw new Error("leeg");
+  return rows.map(([v, time]) => ({ time:time.trim(), mm: Number(v) > 0 ? Math.pow(10, (Number(v) - 109) / 32) : 0 }));
+}
+async function airQuality(lat, lon){
+  try{
+    const j = await getJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi,pm2_5,grass_pollen,birch_pollen&timezone=auto`, 8000);
+    return j.current;
+  }catch(e){ return null; }
+}
+
+let busy = false;
+async function load(opts = {}){
+  if(busy) return; busy = true;
+  $("btnRefresh").classList.add("spin");
+  try{
+    if(!current || current.gps){
+      try{
+        const pos = await gps();
+        const name = (current && current.gps && Math.abs(current.lat - pos.lat) < .01 && Math.abs(current.lon - pos.lon) < .01) ? current.name : await placeName(pos.lat, pos.lon);
+        current = {lat:pos.lat, lon:pos.lon, name, gps:true};
+        store.set("weer.active", current);
+      }catch(e){
+        if(!current){ showMsg("Ik kan je locatie niet bepalen. Sta locatietoegang toe voor deze app, of kies een plaats.", true); return; }
+      }
+    }
+    const [fc, rain, aq] = await Promise.all([
+      getJSON(forecastURL(current.lat, current.lon)),
+      buienradar(current.lat, current.lon).catch(() => null),
+      airQuality(current.lat, current.lon)
+    ]);
+    const data = {fc, rain, aq, place:current, at:Date.now()};
+    store.set("weer.last", data);
+    render(data);
+  }catch(e){
+    const last = store.get("weer.last", null);
+    if(last){ render(last, true); }
+    else showMsg("Geen verbinding met de weerdienst. Probeer het zo opnieuw.", true);
+  }finally{
+    busy = false; $("btnRefresh").classList.remove("spin");
+  }
+}
+function showMsg(t, retry){
+  $("main").classList.add("hidden");
+  $("status").classList.remove("hidden");
+  $("status").innerHTML = t + (retry ? '<br><button id="retry">Opnieuw proberen</button> <button id="pick">Plaats kiezen</button>' : "");
+  if(retry){ $("retry").onclick = () => load(); $("pick").onclick = openSheet; }
+}
+
+/* ---------- render ---------- */
+function render(d, stale){
+  const {fc, place} = d, c = fc.current, h = fc.hourly, dy = fc.daily;
+  $("status").classList.add("hidden"); $("main").classList.remove("hidden");
+  setTheme(c.weather_code, c.is_day);
+
+  const loc = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7.5 3L13.5 21z"/></svg>';
+  $("place").innerHTML = (place.gps ? loc : "") + escapeHTML(place.name);
+  $("temp").textContent = R(c.temperature_2m) + "°";
+  $("cond").textContent = wmo(c.weather_code)[0];
+  $("hilo").textContent = `H:${R(dy.temperature_2m_max[0])}°  L:${R(dy.temperature_2m_min[0])}°`;
+  const t = new Date(d.at);
+  $("updated").textContent = (stale ? "Offline · laatst bijgewerkt " : "Bijgewerkt ") + pad(t.getHours()) + ":" + pad(t.getMinutes());
+
+  // index van huidig uur
+  const nowHour = c.time.slice(0,13);
+  let hi = h.time.findIndex(x => x.slice(0,13) === nowHour); if(hi < 0) hi = 0;
+
+  renderRain(d, c);
+  renderHours(h, dy, hi, c);
+  renderDays(dy, c, h, hi);
+  renderTiles(c, h, dy, hi, d.aq);
+  initRadar(place.lat, place.lon);
+}
+function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+function renderRain(d, c){
+  let pts, src;
+  if(d.rain && d.rain.length){
+    pts = d.rain.slice(0, 24); src = "Buienradar · per 5 minuten";
+  }else{
+    const m = d.fc.minutely_15 || {time:[], precipitation:[]};
+    pts = m.time.map((t,i) => ({time:hm(t), mm:(m.precipitation[i] || 0) * 4})); src = "Open-Meteo · per kwartier";
+  }
+  if(!pts.length){ $("rainCard").classList.add("hidden"); return; }
+  $("rainCard").classList.remove("hidden");
+  const max = Math.max(2, ...pts.map(p => p.mm));
+  $("rainChart").innerHTML =
+    '<div class="rainlines"><div style="top:0">' + (max > 5 ? "zwaar" : "matig") + '</div><div style="top:50%">licht</div></div>' +
+    pts.map(p => `<div class="bar${p.mm < .05 ? " zero" : ""}" style="height:${p.mm < .05 ? 2 : Math.max(6, Math.min(100, Math.sqrt(p.mm / max) * 100))}%" title="${p.time} · ${p.mm.toFixed(1)} mm/u"></div>`).join("");
+  const n = pts.length;
+  $("rainAxis").innerHTML = `<span>Nu</span><span>${pts[Math.floor(n/2)].time}</span><span>${pts[n-1].time}</span>`;
+  $("rainSrc").textContent = src;
+
+  const wet = pts.map(p => p.mm >= .1);
+  let s;
+  if(!wet.some(Boolean)) s = "Droog de komende 2 uur.";
+  else if(wet[0]){
+    const stop = wet.findIndex(w => !w);
+    const peak = Math.max(...pts.map(p => p.mm));
+    s = (stop < 0 ? "Het blijft regenen de komende 2 uur" : `Regen, droog rond ${pts[stop].time}`) + (peak >= 2.5 ? " · flinke buien" : peak < .5 ? " · lichte regen" : "") + ".";
+  }else{
+    const start = wet.findIndex(Boolean);
+    const mm = pts[start].mm;
+    s = `${mm >= 2.5 ? "Flinke regen" : mm < .5 ? "Lichte regen" : "Regen"} verwacht vanaf ${pts[start].time}.`;
+  }
+  $("rainSummary").textContent = s;
+}
+
+function renderHours(h, dy, hi, c){
+  // samenvatting van de dag
+  const rainH = [];
+  for(let i = hi; i < hi + 12 && i < h.time.length; i++) if(h.precipitation_probability[i] >= 50) rainH.push(i);
+  const gust = R(c.wind_gusts_10m);
+  let s = `${wmo(c.weather_code)[0]}. `;
+  s += rainH.length ? `Kans op regen rond ${hm(h.time[rainH[0]])}. ` : "Komende 12 uur waarschijnlijk droog. ";
+  s += `Wind ${dirName(c.wind_direction_10m)} ${bft(c.wind_speed_10m)} Bft` + (gust >= 50 ? `, windstoten tot ${gust} km/u.` : ".");
+  $("daySummary").textContent = s;
+
+  const suns = [];
+  for(let i = 0; i < 2; i++){ suns.push({t:dy.sunrise[i], k:"Zon op", ic:"🌅"}); suns.push({t:dy.sunset[i], k:"Zon onder", ic:"🌇"}); }
+  let html = "";
+  for(let i = hi; i < hi + 25 && i < h.time.length; i++){
+    const p = h.precipitation_probability[i];
+    html += `<div class="hour"><div class="t">${i === hi ? "Nu" : h.time[i].slice(11,13)}</div><div class="p">${p >= 20 ? R(p/10)*10 + "%" : ""}</div><div class="ic">${icon(h.weather_code[i], h.is_day[i])}</div><div class="v">${R(i === hi ? c.temperature_2m : h.temperature_2m[i])}°</div></div>`;
+    const sn = suns.find(x => x.t && x.t.slice(0,13) === h.time[i].slice(0,13) && (i > hi || x.t > c.time));
+    if(sn) html += `<div class="hour sun"><div class="t">${hm(sn.t)}</div><div class="p"></div><div class="ic">${sn.ic}</div><div class="v">${sn.k}</div></div>`;
+  }
+  $("hours").innerHTML = html;
+  $("hours").scrollLeft = 0;
+}
+
+function renderDays(dy, c){
+  const lo = Math.min(...dy.temperature_2m_min), hiT = Math.max(...dy.temperature_2m_max), span = Math.max(1, hiT - lo);
+  $("days").innerHTML = dy.time.map((t, i) => {
+    const a = (dy.temperature_2m_min[i] - lo) / span * 100, b = (dy.temperature_2m_max[i] - lo) / span * 100;
+    const p = dy.precipitation_probability_max[i];
+    const dot = i === 0 ? `<b style="left:${Math.min(100, Math.max(0, (c.temperature_2m - lo) / span * 100))}%"></b>` : "";
+    const detail = `${wmo(dy.weather_code[i])[0]} · ${(dy.precipitation_sum[i] || 0).toFixed(1)} mm · wind ${dirName(dy.wind_direction_10m_dominant[i])} ${bft(dy.wind_speed_10m_max[i])} Bft · UV ${R(dy.uv_index_max[i] || 0)} · zon ${hm(dy.sunrise[i])}–${hm(dy.sunset[i])}`;
+    return `<div class="day" onclick="this.classList.toggle('open')"><div class="d">${dayName(t, i)}</div><div class="ic">${icon(dy.weather_code[i], 1)}</div><div class="p">${p >= 20 ? R(p/10)*10 + "%" : ""}</div><div class="lo">${R(dy.temperature_2m_min[i])}°</div><div class="range"><i style="left:${a}%;width:${Math.max(4, b - a)}%"></i>${dot}</div><div class="hi">${R(dy.temperature_2m_max[i])}°</div><div class="daydetail">${detail}</div></div>`;
+  }).join("");
+}
+
+function tile(title, svgPath, body){
+  return `<section class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg>${title}</h2>${body}</section>`;
+}
+function renderTiles(c, h, dy, hi, aq){
+  const uv = h.uv_index[hi] || 0, vis = h.visibility[hi];
+  const feels = R(c.apparent_temperature), tmp = R(c.temperature_2m);
+  const nextRain = (() => { for(let i = 1; i < dy.time.length; i++) if((dy.precipitation_sum[i] || 0) >= 1) return i; return -1; })();
+  const sunUp = c.time < dy.sunrise[0] ? dy.sunrise[0] : c.time < dy.sunset[0] ? null : dy.sunrise[1];
+  const mins = iso => +iso.slice(11,13) * 60 + +iso.slice(14,16);
+  const dlen = mins(dy.sunset[0]) - mins(dy.sunrise[0]);
+  const rot = (c.wind_direction_10m + 180) % 360;
+
+  let t = "";
+  t += tile("Voelt als", '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
+    `<div class="big">${feels}°</div><div class="note">${feels < tmp - 1 ? "Voelt kouder door de wind." : feels > tmp + 1 ? "Voelt warmer door vocht en zon." : "Voelt zoals de echte temperatuur."}</div>`);
+  t += tile("Wind", '<path d="M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3M3 12h9"/>',
+    `<div class="compass"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
+      ${[0,90,180,270].map((a,i)=>`<text x="${50+38*Math.sin(a*Math.PI/180)}" y="${53-38*Math.cos(a*Math.PI/180)}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.7)" font-weight="600">${"NOZW"[i]}</text>`).join("")}
+      <g transform="rotate(${rot} 50 50)"><path d="M50 12 L55 24 L50 21 L45 24 Z" fill="#fff"/><line x1="50" y1="22" x2="50" y2="82" stroke="#fff" stroke-width="2"/><circle cx="50" cy="84" r="3" fill="none" stroke="#fff" stroke-width="2"/></g>
+      <circle cx="50" cy="50" r="22" fill="#2a3442"/></svg>
+      <div class="c"><b>${bft(c.wind_speed_10m)}</b><span>Bft</span></div></div>
+     <div class="note">${dirName(c.wind_direction_10m)} · ${R(c.wind_speed_10m)} km/u<br>Stoten ${R(c.wind_gusts_10m)} km/u</div>`);
+  t += tile("Neerslag", '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    `<div class="big">${(dy.precipitation_sum[0] || 0).toFixed(1)} mm</div><div class="sub">vandaag</div><div class="note">${nextRain < 0 ? "Daarna geen noemenswaardige regen in de komende 10 dagen." : nextRain === 1 ? `Morgen ${dy.precipitation_sum[1].toFixed(1)} mm verwacht.` : `Volgende regen: ${dayName(dy.time[nextRain], nextRain).toLowerCase()} (${dy.precipitation_sum[nextRain].toFixed(1)} mm).`}</div>`);
+  t += tile("UV-index", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    `<div class="big">${R(uv)}</div><div class="sub">${uvTxt(uv)}</div><div class="meter uvm"><b style="left:${Math.min(100, uv / 11 * 100)}%"></b></div><div class="note">Vandaag max ${R(dy.uv_index_max[0] || 0)}.</div>`);
+  t += tile(sunUp ? "Zonsopkomst" : "Zonsondergang", '<path d="M17 18a5 5 0 0 0-10 0M12 2v7M4.2 10.2l1.4 1.4M1 18h2M21 18h2M18.4 11.6l1.4-1.4M23 22H1M8 6l4-4 4 4"/>',
+    `<div class="big">${hm(sunUp || dy.sunset[0])}</div><div class="note">${sunUp ? "Zonsondergang " + hm(dy.sunset[0] > c.time ? dy.sunset[0] : dy.sunset[1]) : "Zonsopkomst morgen " + hm(dy.sunrise[1])}<br>Daglicht ${Math.floor(dlen/60)}u ${pad(R(dlen%60))}m</div>`);
+  t += tile("Vochtigheid", '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 15h6"/>',
+    `<div class="big">${R(c.relative_humidity_2m)}%</div><div class="note">Dauwpunt is nu ${R(c.dew_point_2m)}°.</div>`);
+  t += tile("Zicht", '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+    `<div class="big">${vis == null ? "–" : vis >= 10000 ? R(vis/1000) + " km" : (vis/1000).toFixed(1) + " km"}</div><div class="note">${vis == null ? "" : vis < 1000 ? "Mist. Let op in het verkeer." : vis < 5000 ? "Heiig of nevelig." : "Goed zicht."}</div>`);
+  t += tile("Luchtdruk", '<circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/>',
+    `<div class="big">${R(c.pressure_msl)}</div><div class="sub">hPa</div><div class="note">${c.pressure_msl < 1000 ? "Lage druk: wisselvallig." : c.pressure_msl > 1020 ? "Hoge druk: stabiel weer." : "Normale luchtdruk."}</div>`);
+  if(aq && aq.european_aqi != null){
+    const pol = Math.max(aq.grass_pollen || 0, aq.birch_pollen || 0);
+    t += tile("Luchtkwaliteit", '<path d="M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3"/>',
+      `<div class="big">${R(aq.european_aqi)}</div><div class="sub">${aqTxt(aq.european_aqi)}</div><div class="meter aqm"><b style="left:${Math.min(100, aq.european_aqi)}%"></b></div><div class="note">Fijnstof ${R(aq.pm2_5 || 0)} µg/m³${pol >= 10 ? " · pollen " + (pol >= 50 ? "veel" : "matig") : ""}</div>`);
+    t += tile("Bewolking", '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/>',
+      `<div class="big">${R(c.cloud_cover)}%</div><div class="note">${c.cloud_cover < 20 ? "Vrijwel onbewolkt." : c.cloud_cover < 70 ? "Wisselend bewolkt." : "Grotendeels bewolkt."}</div>`);
+  }
+  $("tiles").innerHTML = t;
+}
+
+/* ---------- radar ---------- */
+let map, me, frames = [], layers = {}, fi = 0, timer = null;
+const PLAY = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+async function initRadar(lat, lon){
+  if(typeof L === "undefined") { $("radarWrap").parentElement.classList.add("hidden"); return; }
+  if(!map){
+    map = L.map("map", {zoomControl:false, attributionControl:true, scrollWheelZoom:false}).setView([lat, lon], 8);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:"abcd", maxZoom:12
+    }).addTo(map);
+    me = L.marker([lat, lon], {icon:L.divIcon({className:"", html:'<div class="me"></div>', iconSize:[14,14], iconAnchor:[7,7]})}).addTo(map);
+    $("radarPlay").innerHTML = PLAY;
+    $("radarPlay").onclick = () => timer ? stop() : play();
+    $("radarSlider").oninput = e => { stop(); show(+e.target.value); };
+    $("radarFs").onclick = () => { $("radarWrap").classList.toggle("full"); setTimeout(() => map.invalidateSize(), 50); };
+  }else{
+    map.setView([lat, lon], map.getZoom()); me.setLatLng([lat, lon]);
+  }
+  try{
+    const j = await getJSON("https://api.rainviewer.com/public/weather-maps.json", 8000);
+    const fresh = (j.radar.past || []).concat(j.radar.nowcast || []);
+    if(!fresh.length) return;
+    Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
+    frames = fresh.map(f => ({...f, host:j.host}));
+    $("radarSlider").max = frames.length - 1;
+    frames.forEach((f, i) => {
+      layers[i] = L.tileLayer(`${f.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, {opacity:0, maxNativeZoom:7, maxZoom:12, zIndex:10}).addTo(map);
+    });
+    show(frames.length - 1);
+  }catch(e){}
+}
+function show(i){
+  if(!frames.length) return;
+  if(layers[fi]) layers[fi].setOpacity(0);
+  fi = i; layers[fi].setOpacity(.75);
+  $("radarSlider").value = fi;
+  const d = new Date(frames[fi].time * 1000);
+  $("radarTime").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+function play(){ $("radarPlay").innerHTML = PAUSE; timer = setInterval(() => show((fi + 1) % frames.length), 600); }
+function stop(){ $("radarPlay").innerHTML = PLAY; clearInterval(timer); timer = null; }
+
+/* ---------- plaatsen ---------- */
+function openSheet(){ $("sheet").classList.add("open"); $("search").value = ""; $("results").innerHTML = ""; renderSaved(); }
+function closeSheet(){ $("sheet").classList.remove("open"); }
+const PIN = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7.5 3L13.5 21z"/></svg>';
+function renderSaved(){
+  let html = `<button class="pitem" data-gps="1">${PIN}<span class="n"><div>Mijn locatie</div><small>Live via gps</small></span></button>`;
+  html += saved.map((p, i) => `<div class="pitem" data-i="${i}"><span class="n"><div>${escapeHTML(p.name)}</div><small>${escapeHTML(p.region || "")}</small></span><button class="x" data-del="${i}" aria-label="Verwijderen">✕</button></div>`).join("");
+  $("saved").innerHTML = html;
+}
+$("saved").onclick = e => {
+  const del = e.target.closest("[data-del]");
+  if(del){ e.stopPropagation(); saved.splice(+del.dataset.del, 1); store.set("weer.saved", saved); renderSaved(); return; }
+  const it = e.target.closest(".pitem"); if(!it) return;
+  if(it.dataset.gps) current = null;
+  else { const p = saved[+it.dataset.i]; current = {lat:p.lat, lon:p.lon, name:p.name, gps:false}; }
+  store.set("weer.active", current); closeSheet(); load();
+};
+let st;
+$("search").oninput = e => {
+  clearTimeout(st); const q = e.target.value.trim();
+  if(q.length < 2){ $("results").innerHTML = ""; return; }
+  st = setTimeout(async () => {
+    try{
+      const j = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=nl`);
+      const res = j.results || [];
+      $("results").innerHTML = res.length ? res.map((r, i) => `<button class="pitem" data-r="${i}"><span class="n"><div>${escapeHTML(r.name)}</div><small>${escapeHTML([r.admin1, r.country].filter(Boolean).join(", "))}</small></span><span>＋</span></button>`).join("") : '<div class="pitem"><span class="n"><small>Niets gevonden</small></span></div>';
+      $("results").onclick = ev => {
+        const b = ev.target.closest("[data-r]"); if(!b) return;
+        const r = res[+b.dataset.r];
+        const p = {name:r.name, region:[r.admin1, r.country].filter(Boolean).join(", "), lat:r.latitude, lon:r.longitude};
+        if(!saved.some(s => Math.abs(s.lat - p.lat) < .01 && Math.abs(s.lon - p.lon) < .01)){ saved.push(p); store.set("weer.saved", saved); }
+        current = {lat:p.lat, lon:p.lon, name:p.name, gps:false};
+        store.set("weer.active", current); closeSheet(); load();
+      };
+    }catch(err){ $("results").innerHTML = '<div class="pitem"><span class="n"><small>Zoeken lukt nu niet</small></span></div>'; }
+  }, 300);
+};
+$("btnPlaces").onclick = openSheet;
+$("btnClose").onclick = closeSheet;
+$("sheet").onclick = e => { if(e.target.id === "sheet") closeSheet(); };
+$("btnRefresh").onclick = () => load();
+
+/* ---------- start ---------- */
+const last = store.get("weer.last", null);
+if(last && current && last.place && last.place.lat === current.lat) render(last, true);
+load();
+let lastLoad = Date.now();
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && Date.now() - lastLoad > 5 * 60 * 1000){ lastLoad = Date.now(); load(); }
+});
+setInterval(() => { if(document.visibilityState === "visible"){ lastLoad = Date.now(); load(); } }, 10 * 60 * 1000);
+
+if("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
