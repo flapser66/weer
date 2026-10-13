@@ -102,6 +102,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .radarwrap.full .radarfs{top:calc(env(safe-area-inset-top) + 12px)}
 .leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,.6)!important}
 .leaflet-bottom.leaflet-right{bottom:52px}
+.legend{position:absolute;top:8px;left:8px;z-index:500;display:flex;align-items:center;gap:6px;background:rgba(20,28,40,.75);border-radius:10px;padding:5px 8px;font-size:10px;color:#fff}
+.legend i{display:block;width:70px;height:6px;border-radius:3px;background:linear-gradient(90deg,#9be7ff,#3fa9f5,#1f5fd6,#3ad13a,#f4e23a,#ff8a00,#e0201b)}
 .me{width:14px;height:14px;border-radius:50%;background:#2f8cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,140,255,.25)}
 
 /* tiles */
@@ -190,10 +192,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
         <button class="radarfs" id="radarFs" aria-label="Volledig scherm">
           <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         </button>
+        <div class="legend"><span>licht</span><i></i><span>zwaar</span></div>
         <div class="radarctl">
           <button id="radarPlay" aria-label="Afspelen"></button>
           <input type="range" id="radarSlider" min="0" max="0" value="0">
-          <span class="rt" id="radarTime">--:--</span>
+          <span class="rt" id="radarTime">--:--</span><span class="rt" id="radarSrc" style="min-width:0;font-size:10px;opacity:.6"></span>
         </div>
       </div>
     </section>
@@ -202,7 +205,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
     <div class="foot">
       Data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (o.a. KNMI Harmonie),
-      radar: <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>,
+      radar: <a href="https://www.knmi.nl" target="_blank" rel="noopener">KNMI</a> / <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>, kaart: Esri,
       neerslag 2 uur: Buienradar
     </div>
   </main>
@@ -503,17 +506,21 @@ function renderTiles(c, h, dy, hi, aq){
 }
 
 /* ---------- radar ---------- */
-let map, me, frames = [], layers = {}, fi = 0, timer = null;
+let map, me, frames = [], layers = {}, fi = 0, timer = null, radarSrc = "";
 const PLAY = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
+const KNMI = "https://geoservices.knmi.nl/adagucserver?dataset=RADAR&";
+const inNL = (lat, lon) => lat > 49.5 && lat < 55.6 && lon > 1.2 && lon < 9.8;
 async function initRadar(lat, lon){
   if(typeof L === "undefined") { $("radarWrap").parentElement.classList.add("hidden"); return; }
+  const nl = inNL(lat, lon);
   if(!map){
-    map = L.map("map", {zoomControl:false, attributionControl:true, scrollWheelZoom:false}).setView([lat, lon], 8);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:"abcd", maxZoom:12
-    }).addTo(map);
-    me = L.marker([lat, lon], {icon:L.divIcon({className:"", html:'<div class="me"></div>', iconSize:[14,14], iconAnchor:[7,7]})}).addTo(map);
+    map = L.map("map", {zoomControl:false, attributionControl:true, scrollWheelZoom:false}).setView([lat, lon], nl ? 9 : 7);
+    L.tileLayer(ESRI + "World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {attribution:"Esri", maxZoom:13}).addTo(map);
+    map.createPane("labels"); map.getPane("labels").style.zIndex = 450; map.getPane("labels").style.pointerEvents = "none";
+    L.tileLayer(ESRI + "World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {pane:"labels", maxZoom:13}).addTo(map);
+    me = L.marker([lat, lon], {icon:L.divIcon({className:"", html:'<div class="me"></div>', iconSize:[14,14], iconAnchor:[7,7]}), pane:"labels"}).addTo(map);
     $("radarPlay").innerHTML = PLAY;
     $("radarPlay").onclick = () => timer ? stop() : play();
     $("radarSlider").oninput = e => { stop(); show(+e.target.value); };
@@ -522,14 +529,24 @@ async function initRadar(lat, lon){
     map.setView([lat, lon], map.getZoom()); me.setLatLng([lat, lon]);
   }
   try{
-    const j = await getJSON("https://api.rainviewer.com/public/weather-maps.json", 8000);
-    const fresh = (j.radar.past || []).concat(j.radar.nowcast || []);
+    let fresh;
+    if(nl){
+      const cap = await getText(KNMI + "service=WMS&request=GetCapabilities", 8000);
+      const end = new Date(cap.match(/<Dimension name="time"[^>]*>[^<]*\/([^/<]+)\/PT5M/)[1]);
+      fresh = [];
+      for(let k = 24; k >= 0; k -= 2){ const t = new Date(end - k * 5 * 60000); fresh.push({time:t / 1000, iso:t.toISOString().slice(0,19) + "Z"}); }
+    }else{
+      const j = await getJSON("https://api.rainviewer.com/public/weather-maps.json", 8000);
+      fresh = (j.radar.past || []).map(f => ({...f, host:j.host}));
+    }
     if(!fresh.length) return;
-    Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
-    frames = fresh.map(f => ({...f, host:j.host}));
+    stop(); Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
+    frames = fresh; radarSrc = nl ? "KNMI" : "RainViewer";
     $("radarSlider").max = frames.length - 1;
     frames.forEach((f, i) => {
-      layers[i] = L.tileLayer(`${f.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, {opacity:0, maxNativeZoom:7, maxZoom:12, zIndex:10}).addTo(map);
+      layers[i] = nl
+        ? L.tileLayer.wms(KNMI, {layers:"RAD_NL25_PCP_CM", styles:"precip-rainbow", format:"image/png", transparent:true, version:"1.3.0", time:f.iso, opacity:0, tileSize:512, zoomOffset:-1, attribution:"KNMI"}).addTo(map)
+        : L.tileLayer(`${f.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, {opacity:0, maxNativeZoom:7, maxZoom:13, attribution:"RainViewer"}).addTo(map);
     });
     show(frames.length - 1);
   }catch(e){}
@@ -537,12 +554,13 @@ async function initRadar(lat, lon){
 function show(i){
   if(!frames.length) return;
   if(layers[fi]) layers[fi].setOpacity(0);
-  fi = i; layers[fi].setOpacity(.75);
+  fi = i; layers[fi].setOpacity(.8);
   $("radarSlider").value = fi;
   const d = new Date(frames[fi].time * 1000);
   $("radarTime").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+  $("radarSrc").textContent = radarSrc;
 }
-function play(){ $("radarPlay").innerHTML = PAUSE; timer = setInterval(() => show((fi + 1) % frames.length), 600); }
+function play(){ $("radarPlay").innerHTML = PAUSE; timer = setInterval(() => show((fi + 1) % frames.length), 500); }
 function stop(){ $("radarPlay").innerHTML = PLAY; clearInterval(timer); timer = null; }
 
 /* ---------- plaatsen ---------- */
