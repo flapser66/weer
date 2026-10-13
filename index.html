@@ -103,7 +103,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,.6)!important}
 .leaflet-bottom.leaflet-right{bottom:52px}
 .legend{position:absolute;top:8px;left:8px;z-index:500;display:flex;align-items:center;gap:6px;background:rgba(20,28,40,.75);border-radius:10px;padding:5px 8px;font-size:10px;color:#fff}
-.legend i{display:block;width:70px;height:6px;border-radius:3px;background:linear-gradient(90deg,#9be7ff,#3fa9f5,#1f5fd6,#3ad13a,#f4e23a,#ff8a00,#e0201b)}
+.legend i{display:block;width:70px;height:6px;border-radius:3px;background:linear-gradient(90deg,#e8ecff,#9aa8ef,#3c50d8,#1a1f9c,#c8143c)}
+.brimg{image-rendering:auto}
 .me{width:14px;height:14px;border-radius:50%;background:#2f8cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,140,255,.25)}
 
 /* tiles */
@@ -205,7 +206,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
     <div class="foot">
       Data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (o.a. KNMI Harmonie),
-      radar: <a href="https://www.knmi.nl" target="_blank" rel="noopener">KNMI</a> / <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>, kaart: Esri,
+      radar: <a href="https://www.buienradar.nl" target="_blank" rel="noopener">Buienradar</a> / <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>, kaart: Esri,
       neerslag 2 uur: Buienradar
     </div>
   </main>
@@ -510,8 +511,9 @@ let map, me, frames = [], layers = {}, fi = 0, timer = null, radarSrc = "";
 const PLAY = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>';
 const PAUSE = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
-const KNMI = "https://geoservices.knmi.nl/adagucserver?dataset=RADAR&";
-const inNL = (lat, lon) => lat > 49.5 && lat < 55.6 && lon > 1.2 && lon < 9.8;
+const BR = "https://image.buienradar.nl/2.0/metadata/sprite/RadarMapRainWebMercatorNL?width=1058&height=915&history=12&forecast=24&skip=0";
+const BR_BOUNDS = [[54.8, 0], [49.5, 10]];
+const inNL = (lat, lon) => lat > 49.8 && lat < 54.5 && lon > 0.5 && lon < 9.5;
 async function initRadar(lat, lon){
   if(typeof L === "undefined") { $("radarWrap").parentElement.classList.add("hidden"); return; }
   const nl = inNL(lat, lon);
@@ -529,38 +531,49 @@ async function initRadar(lat, lon){
     map.setView([lat, lon], map.getZoom()); me.setLatLng([lat, lon]);
   }
   try{
-    let fresh;
+    let fresh, now = 0;
     if(nl){
-      const cap = await getText(KNMI + "service=WMS&request=GetCapabilities", 8000);
-      const end = new Date(cap.match(/<Dimension name="time"[^>]*>[^<]*\/([^/<]+)\/PT5M/)[1]);
-      fresh = [];
-      for(let k = 24; k >= 0; k -= 2){ const t = new Date(end - k * 5 * 60000); fresh.push({time:t / 1000, iso:t.toISOString().slice(0,19) + "Z"}); }
+      const j = await getJSON(BR, 8000);
+      const nowT = Date.parse(j.stilltimestamp + "Z");
+      fresh = (j.times || []).filter((t, i) => i % 2 === 0 || Date.parse(t.timestamp + "Z") === nowT)
+        .map(t => ({time:Date.parse(t.timestamp + "Z") / 1000, url:t.url, fc:Date.parse(t.timestamp + "Z") > nowT}));
+      now = fresh.findIndex(f => f.time * 1000 === nowT); if(now < 0) now = fresh.filter(f => !f.fc).length - 1;
     }else{
       const j = await getJSON("https://api.rainviewer.com/public/weather-maps.json", 8000);
-      fresh = (j.radar.past || []).map(f => ({...f, host:j.host}));
+      fresh = (j.radar.past || []).map(f => ({time:f.time, url:`${j.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, tiles:true}));
+      now = fresh.length - 1;
     }
     if(!fresh.length) return;
     stop(); Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
-    frames = fresh; radarSrc = nl ? "KNMI" : "RainViewer";
+    frames = fresh; radarSrc = nl ? "Buienradar" : "RainViewer";
     $("radarSlider").max = frames.length - 1;
-    frames.forEach((f, i) => {
-      layers[i] = nl
-        ? L.tileLayer.wms(KNMI, {layers:"RAD_NL25_PCP_CM", styles:"precip-rainbow", format:"image/png", transparent:true, version:"1.3.0", time:f.iso, opacity:0, tileSize:512, zoomOffset:-1, attribution:"KNMI"}).addTo(map)
-        : L.tileLayer(`${f.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, {opacity:0, maxNativeZoom:7, maxZoom:13, attribution:"RainViewer"}).addTo(map);
-    });
-    show(frames.length - 1);
+    show(now);
   }catch(e){}
+}
+function layer(i){
+  if(!layers[i]){
+    const f = frames[i];
+    layers[i] = f.tiles
+      ? L.tileLayer(f.url, {opacity:0, maxNativeZoom:7, maxZoom:13, attribution:"RainViewer"}).addTo(map)
+      : L.imageOverlay(f.url, BR_BOUNDS, {opacity:0, attribution:"Buienradar", className:"brimg"}).addTo(map);
+  }
+  return layers[i];
 }
 function show(i){
   if(!frames.length) return;
   if(layers[fi]) layers[fi].setOpacity(0);
-  fi = i; layers[fi].setOpacity(.8);
+  fi = i; layer(fi).setOpacity(.9);
   $("radarSlider").value = fi;
   const d = new Date(frames[fi].time * 1000);
   $("radarTime").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
-  $("radarSrc").textContent = radarSrc;
+  $("radarSrc").textContent = frames[fi].fc ? "verwachting" : radarSrc;
+  $("radarSrc").style.color = frames[fi].fc ? "#ffd25e" : "";
 }
-function play(){ $("radarPlay").innerHTML = PAUSE; timer = setInterval(() => show((fi + 1) % frames.length), 500); }
+function play(){
+  frames.forEach((f, i) => layer(i));
+  $("radarPlay").innerHTML = PAUSE;
+  timer = setInterval(() => show((fi + 1) % frames.length), 450);
+}
 function stop(){ $("radarPlay").innerHTML = PLAY; clearInterval(timer); timer = null; }
 
 /* ---------- plaatsen ---------- */
