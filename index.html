@@ -144,9 +144,20 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .foot{text-align:center;font-size:11px;color:var(--faint);margin-top:8px;line-height:1.6}
 .foot a{color:inherit}
 .hidden{display:none!important}
+.warn{border-radius:18px;padding:12px 14px;margin-bottom:12px;color:#1b1b1b;cursor:pointer}
+.warn.l2{background:#ffe14d}.warn.l3{background:#ff9a2e}.warn.l4{background:#ff4d4d;color:#fff}
+.warn .wt{font-weight:700;font-size:15px;display:flex;gap:8px;align-items:center}
+.warn .ws{font-size:12px;opacity:.8;margin-top:2px}
+.warn .wd{font-size:13px;line-height:1.35;margin-top:8px;display:none}
+.warn.open .wd{display:block}
+.hour .mm{font-size:10px;color:var(--rain);opacity:.85;height:12px;margin-top:-4px}
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);z-index:60;width:36px;height:36px;margin-left:-18px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;transform:translateY(-60px);opacity:0;pointer-events:none}
+.ptr svg{width:20px;height:20px;stroke:#2f6fb5}
+.ptr.spin svg{animation:spin 1s linear infinite}
 </style>
 </head>
 <body>
+<div class="ptr" id="ptr"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></div>
 <div class="wrap">
   <div class="topbar">
     <button class="iconbtn" id="btnPlaces" aria-label="Plaatsen">
@@ -167,6 +178,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
       <div class="hilo" id="hilo"></div>
       <div class="updated" id="updated"></div>
     </section>
+
+    <div id="warnings"></div>
 
     <section class="card" id="rainCard">
       <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg>Neerslag komende 2 uur</h2>
@@ -331,6 +344,45 @@ async function airQuality(lat, lon){
   }catch(e){ return null; }
 }
 
+/* ---------- weerwaarschuwingen (MeteoAlarm / KNMI) ---------- */
+function inPoly(lat, lon, poly){
+  const pts = poly.trim().split(/\s+/).map(p => p.split(",").map(Number));
+  let inside = false;
+  for(let i = 0, j = pts.length - 1; i < pts.length; j = i++){
+    const [yi, xi] = pts[i], [yj, xj] = pts[j];
+    if(((yi > lat) !== (yj > lat)) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+async function warnings(lat, lon){
+  if(!(lat > 50.6 && lat < 53.7 && lon > 3.2 && lon < 7.3)) return [];
+  try{
+    const j = await getJSON("https://feeds.meteoalarm.org/api/v1/warnings/feeds-netherlands", 9000);
+    const now = Date.now(), out = [], seen = new Set();
+    for(const w of j.warnings || []){
+      const a = w.alert || {};
+      if(a.msgType === "Cancel" || a.status !== "Actual") continue;
+      const infos = a.info || [];
+      const info = infos.find(i => /^nl/i.test(i.language)) || infos[0];
+      if(!info || Date.parse(info.expires) < now) continue;
+      const par = k => ((info.parameter || []).find(p => p.valueName === k) || {}).value || "";
+      const level = parseInt(par("awareness_level")) || 1;
+      if(level < 2) continue;
+      if(!(info.area || []).some(ar => ar.polygon && [].concat(ar.polygon).some(pg => inPoly(lat, lon, pg)))) continue;
+      const key = level + (par("awareness_type") || info.event) + info.onset;
+      if(seen.has(key)) continue; seen.add(key);
+      out.push({level, event:info.event, headline:info.headline || "", desc:info.description || "", onset:info.onset, expires:info.expires});
+    }
+    return out.sort((x, y) => y.level - x.level || Date.parse(x.onset) - Date.parse(y.onset));
+  }catch(e){ return null; }
+}
+const fmtDT = iso => { const d = new Date(iso), t = new Date(); const same = d.toDateString() === t.toDateString();
+  return (same ? "" : d.toLocaleDateString("nl-NL",{weekday:"short"}) + " ") + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+function renderWarnings(list){
+  const names = {2:"Code geel", 3:"Code oranje", 4:"Code rood"};
+  $("warnings").innerHTML = (list || []).map(w => `<div class="warn l${w.level}" onclick="this.classList.toggle('open')"><div class="wt">⚠️ ${names[w.level]}: ${escapeHTML(w.event)}</div><div class="ws">${Date.parse(w.onset) > Date.now() ? "Van " + fmtDT(w.onset) + " " : ""}tot ${fmtDT(w.expires)} · tik voor details</div><div class="wd">${escapeHTML(w.headline)}${w.desc ? "<br>" + escapeHTML(w.desc) : ""}</div></div>`).join("");
+}
+
 let busy = false;
 async function load(opts = {}){
   if(busy) return; busy = true;
@@ -346,12 +398,13 @@ async function load(opts = {}){
         if(!current){ showMsg("Ik kan je locatie niet bepalen. Sta locatietoegang toe voor deze app, of kies een plaats.", true); return; }
       }
     }
-    const [fc, rain, aq] = await Promise.all([
+    const [fc, rain, aq, warn] = await Promise.all([
       getJSON(forecastURL(current.lat, current.lon)),
       buienradar(current.lat, current.lon).catch(() => null),
-      airQuality(current.lat, current.lon)
+      airQuality(current.lat, current.lon),
+      warnings(current.lat, current.lon)
     ]);
-    const data = {fc, rain, aq, place:current, at:Date.now()};
+    const data = {fc, rain, aq, warn, place:current, at:Date.now()};
     store.set("weer.last", data);
     render(data);
   }catch(e){
@@ -387,6 +440,7 @@ function render(d, stale){
   const nowHour = c.time.slice(0,13);
   let hi = h.time.findIndex(x => x.slice(0,13) === nowHour); if(hi < 0) hi = 0;
 
+  renderWarnings(d.warn);
   renderRain(d, c);
   renderHours(h, dy, hi, c);
   renderDays(dy, c, h, hi);
@@ -443,9 +497,9 @@ function renderHours(h, dy, hi, c){
   let html = "";
   for(let i = hi; i < hi + 25 && i < h.time.length; i++){
     const p = h.precipitation_probability[i];
-    html += `<div class="hour"><div class="t">${i === hi ? "Nu" : h.time[i].slice(11,13)}</div><div class="p">${p >= 20 ? R(p/10)*10 + "%" : ""}</div><div class="ic">${icon(h.weather_code[i], h.is_day[i])}</div><div class="v">${R(i === hi ? c.temperature_2m : h.temperature_2m[i])}°</div></div>`;
+    html += `<div class="hour"><div class="t">${i === hi ? "Nu" : h.time[i].slice(11,13)}</div><div class="p">${p >= 20 ? R(p/10)*10 + "%" : ""}</div><div class="ic">${icon(h.weather_code[i], h.is_day[i])}</div><div class="mm">${h.precipitation[i] >= 0.1 ? h.precipitation[i].toFixed(1).replace(".", ",") + " mm" : ""}</div><div class="v">${R(i === hi ? c.temperature_2m : h.temperature_2m[i])}°</div></div>`;
     const sn = suns.find(x => x.t && x.t.slice(0,13) === h.time[i].slice(0,13) && (i > hi || x.t > c.time));
-    if(sn) html += `<div class="hour sun"><div class="t">${hm(sn.t)}</div><div class="p"></div><div class="ic">${sn.ic}</div><div class="v">${sn.k}</div></div>`;
+    if(sn) html += `<div class="hour sun"><div class="t">${hm(sn.t)}</div><div class="p"></div><div class="ic">${sn.ic}</div><div class="mm"></div><div class="v">${sn.k}</div></div>`;
   }
   $("hours").innerHTML = html;
   $("hours").scrollLeft = 0;
@@ -476,7 +530,7 @@ function renderTiles(c, h, dy, hi, aq){
 
   let t = "";
   t += tile("Voelt als", '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
-    `<div class="big">${feels}°</div><div class="note">${feels < tmp - 1 ? "Voelt kouder door de wind." : feels > tmp + 1 ? "Voelt warmer door vocht en zon." : "Voelt zoals de echte temperatuur."}</div>`);
+    `<div class="big">${feels}°</div><div class="note">${feels < tmp - 1 ? (c.wind_speed_10m >= 10 ? "Voelt kouder door de wind." : "Voelt kouder door de droge lucht.") : feels > tmp + 1 ? (c.is_day && c.cloud_cover < 60 ? "Voelt warmer door zon en weinig wind." : "Voelt warmer door de vochtige lucht.") : "Voelt zoals de echte temperatuur."}</div>`);
   t += tile("Wind", '<path d="M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3M3 12h9"/>',
     `<div class="compass"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
       ${[0,90,180,270].map((a,i)=>`<text x="${50+38*Math.sin(a*Math.PI/180)}" y="${53-38*Math.cos(a*Math.PI/180)}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.7)" font-weight="600">${"NOZW"[i]}</text>`).join("")}
@@ -524,8 +578,8 @@ async function initRadar(lat, lon){
     L.tileLayer(ESRI + "World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {pane:"labels", maxZoom:13}).addTo(map);
     me = L.marker([lat, lon], {icon:L.divIcon({className:"", html:'<div class="me"></div>', iconSize:[14,14], iconAnchor:[7,7]}), pane:"labels"}).addTo(map);
     $("radarPlay").innerHTML = PLAY;
-    $("radarPlay").onclick = () => timer ? stop() : play();
-    $("radarSlider").oninput = e => { stop(); show(+e.target.value); };
+    $("radarPlay").onclick = () => { if(timer){ stop(); userStopped = true; } else { userStopped = false; play(); } };
+    $("radarSlider").oninput = e => { stop(); userStopped = true; show(+e.target.value); };
     $("radarFs").onclick = () => { $("radarWrap").classList.toggle("full"); setTimeout(() => map.invalidateSize(), 50); };
   }else{
     map.setView([lat, lon], map.getZoom()); me.setLatLng([lat, lon]);
@@ -548,6 +602,7 @@ async function initRadar(lat, lon){
     frames = fresh; radarSrc = nl ? "Buienradar" : "RainViewer";
     $("radarSlider").max = frames.length - 1;
     show(now);
+    if(radarVisible && !userStopped) play();
   }catch(e){}
 }
 function layer(i){
@@ -575,6 +630,14 @@ function play(){
   timer = setInterval(() => show((fi + 1) % frames.length), 450);
 }
 function stop(){ $("radarPlay").innerHTML = PLAY; clearInterval(timer); timer = null; }
+let radarVisible = false, userStopped = false;
+if("IntersectionObserver" in window){
+  new IntersectionObserver(es => es.forEach(e => {
+    radarVisible = e.isIntersecting;
+    if(radarVisible && !userStopped && !timer && frames.length) play();
+    else if(!radarVisible && timer){ stop(); userStopped = false; }
+  }), {threshold:.6}).observe($("radarWrap"));
+}
 
 /* ---------- plaatsen ---------- */
 function openSheet(){ $("sheet").classList.add("open"); $("search").value = ""; $("results").innerHTML = ""; renderSaved(); }
@@ -617,6 +680,17 @@ $("btnPlaces").onclick = openSheet;
 $("btnClose").onclick = closeSheet;
 $("sheet").onclick = e => { if(e.target.id === "sheet") closeSheet(); };
 $("btnRefresh").onclick = () => load();
+(() => {
+  let y0 = null, dy = 0; const ptr = $("ptr");
+  const set = (d, o) => { ptr.style.transform = `translateY(${d - 60}px) rotate(${d * 3}deg)`; ptr.style.opacity = o; };
+  addEventListener("touchstart", e => { y0 = (scrollY <= 0 && !$("sheet").classList.contains("open") && !e.target.closest("#radarWrap, .hours")) ? e.touches[0].clientY : null; dy = 0; }, {passive:true});
+  addEventListener("touchmove", e => { if(y0 === null) return; dy = Math.max(0, Math.min(110, (e.touches[0].clientY - y0) * .5)); ptr.style.transition = "none"; set(dy, Math.min(1, dy / 60)); }, {passive:true});
+  addEventListener("touchend", async () => {
+    if(y0 === null) return; y0 = null; ptr.style.transition = "transform .25s, opacity .25s";
+    if(dy >= 60){ set(60, 1); ptr.classList.add("spin"); await load(); ptr.classList.remove("spin"); }
+    set(0, 0);
+  });
+})();
 
 /* ---------- start ---------- */
 const last = store.get("weer.last", null);
