@@ -16,9 +16,9 @@
 <style>
 :root{
   --bg1:#2f6fb5; --bg2:#7fb6e6;
-  --card:rgba(255,255,255,.14); --card-b:rgba(255,255,255,.18);
+  --card:rgba(255,255,255,.11); --card-b:rgba(255,255,255,.18);
   --text:#fff; --muted:rgba(255,255,255,.72); --faint:rgba(255,255,255,.45);
-  --rain:#6ec3ff;
+  --rain:#8fd2ff;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{min-height:100%}
@@ -262,11 +262,11 @@ const wmo = c => WMO[c] || ["Onbekend","🌡️","🌡️","cloud"];
 const icon = (c, day) => { const w = wmo(c); return day === 0 ? w[2] : w[1]; };
 
 const THEMES = {
-  clear:[["#2f6fb5","#7fb6e6"],["#0b1834","#2c3f6e"]],
-  cloud:[["#5d7088","#9aabbd"],["#1c2430","#3a4657"]],
-  rain:[["#46566a","#7b8a9b"],["#111923","#2c3949"]],
-  snow:[["#7f97b2","#c9d6e4"],["#24303f","#4a5a6e"]],
-  fog:[["#7c838d","#b2b8bf"],["#262b31","#474e57"]],
+  clear:[["#2a64a8","#5b97d2"],["#0b1834","#2c3f6e"]],
+  cloud:[["#46576b","#687a8f"],["#1c2430","#3a4657"]],
+  rain:[["#38475a","#566577"],["#111923","#2c3949"]],
+  snow:[["#566c86","#7d8ea4"],["#24303f","#4a5a6e"]],
+  fog:[["#575e68","#7a828c"],["#262b31","#474e57"]],
   storm:[["#2a2c40","#4b4f6b"],["#141522","#2e3048"]]
 };
 function setTheme(code, isDay){
