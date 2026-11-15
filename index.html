@@ -16,13 +16,15 @@
 <style>
 :root{
   --bg1:#2f6fb5; --bg2:#7fb6e6;
-  --card:rgba(255,255,255,.11); --card-b:rgba(255,255,255,.18);
+  --card:color-mix(in srgb,var(--bg1) 78%,#000); --card-b:rgba(255,255,255,.07); --cloud:rgba(255,255,255,.9);
   --text:#fff; --muted:rgba(255,255,255,.72); --faint:rgba(255,255,255,.45);
   --rain:#8fd2ff;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{min-height:100%}
-body::before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,var(--bg1) 0%,var(--bg2) 100%)}
+body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bg1)}
+#sky{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+#sky svg{position:absolute;fill:var(--cloud);}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   color:var(--text);
@@ -35,7 +37,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* top bar */
 .topbar{display:flex;justify-content:space-between;align-items:center;min-height:40px}
-.iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--card);border:1px solid var(--card-b);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--card);border:1px solid var(--card-b)}
 .iconbtn svg{width:20px;height:20px}
 .iconbtn.spin svg{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -50,7 +52,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .updated{font-size:12px;color:var(--faint);margin-top:8px}
 
 /* cards */
-.card{background:var(--card);border:1px solid var(--card-b);border-radius:18px;padding:14px 16px;margin-bottom:12px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.card{background:var(--card);border:1px solid var(--card-b);border-radius:18px;padding:14px 16px;margin-bottom:12px}
 .card h2{white-space:nowrap;overflow:hidden;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);display:flex;align-items:center;gap:6px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:10px}
 .card h2 svg{width:14px;height:14px}
 .summary{font-size:15px;line-height:1.35;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:10px}
@@ -158,6 +160,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 </head>
 <body>
 <div class="ptr" id="ptr"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></div>
+<div id="sky"></div>
 <div class="wrap">
   <div class="topbar">
     <button class="iconbtn" id="btnPlaces" aria-label="Plaatsen">
@@ -270,9 +273,14 @@ const THEMES = {
   storm:[["#2a2c40","#4b4f6b"],["#141522","#2e3048"]]
 };
 function setTheme(code, isDay){
-  const t = THEMES[wmo(code)[3]][isDay ? 0 : 1];
+  const kind = wmo(code)[3], t = THEMES[code === 2 ? "clear" : kind][isDay ? 0 : 1];
   const r = document.documentElement.style;
   r.setProperty("--bg1", t[0]); r.setProperty("--bg2", t[1]);
+  const cloudy = code >= 2 && kind !== "fog";
+  r.setProperty("--cloud", !isDay ? "rgba(255,255,255,.10)" : kind === "cloud" && code === 2 ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.22)");
+  const C = '<svg viewBox="0 0 120 60"><path d="M30 55a22 22 0 0 1-2-44A28 28 0 0 1 80 12a20 20 0 0 1 12 43z"/></svg>';
+  const spots = code === 2 ? [[-13,13,36],[78,9,32]] : [[-13,13,38],[78,9,34],[-8,30,26],[82,25,28]];
+  $("sky").innerHTML = cloudy ? spots.map(([x,y,w]) => C.replace("<svg", `<svg style="left:${x}vw;top:${y}vh;width:${w}vw"`)).join("") : "";
   document.querySelector('meta[name="theme-color"]').content = t[0];
 }
 
