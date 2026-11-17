@@ -1,5 +1,5 @@
 // Service worker: app offline beschikbaar + pushmeldingen
-const CACHE = "weer-v21";
+const CACHE = "weer-v22";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest", "./css/app.css",
   "./js/app.js", "./js/fx.js", "./js/sound.js", "./js/settings.js", "./js/push.js",

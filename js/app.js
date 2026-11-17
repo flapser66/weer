@@ -538,6 +538,11 @@ $("place").addEventListener("click", () => { const t = Date.now(); taps = taps.f
 
 /* ---------- start ---------- */
 apply();
+if(location.hostname.endsWith("github.io")){ // oude adres: wijs naar de nieuwe versie
+  const n = document.createElement("a"); n.href = "https://weer-jasper.web.app/"; n.className = "btn";
+  n.style.cssText = "display:block;text-align:center;margin:10px 0 0;text-decoration:none";
+  n.textContent = "➜ NIEUWE VERSIE MET MELDINGEN: WEER-JASPER.WEB.APP"; document.querySelector(".topbar").after(n);
+}
 FX.init({hero:$("hero"), temp:$("temp"), solar:$("solar"), onShake:() => { FX.warp(); load(); }});
 FX.boot("Jasper");
 onChange(() => {});
