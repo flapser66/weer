@@ -1,6 +1,6 @@
 // Houdt de app zelf offline beschikbaar. Weerdata komt altijd vers van internet;
 // de app bewaart zelf de laatste verwachting voor als je geen verbinding hebt.
-const CACHE = "weer-v8";
+const CACHE = "weer-v9";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",

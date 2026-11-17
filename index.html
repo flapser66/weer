@@ -1295,6 +1295,13 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   $("tFx").onclick = () => { fxOn = !fxOn; store("fx", fxOn ? "1" : "0"); paint(); if(fxOn && window.FX) FX.start(); };
   $("tSnd").onclick = () => { soundOn = !soundOn; store("snd", soundOn ? "1" : "0"); paint(); if(soundOn){ unlocked = false; unlock(); setTimeout(() => SFX.blip(1600, .08), 60); } };
   paint();
+
+  /* --- installeerknop (Android/Chrome/Samsung Internet) --- */
+  let promptEv = null;
+  const inst = document.createElement("button"); inst.id = "tInst"; inst.textContent = "⬇ INSTALLEER APP"; inst.style.display = "none"; bar.appendChild(inst);
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptEv = e; inst.style.display = ""; });
+  inst.onclick = async () => { if(!promptEv) return; promptEv.prompt(); await promptEv.userChoice; promptEv = null; inst.style.display = "none"; };
+  addEventListener("appinstalled", () => { inst.style.display = "none"; });
 })();
 </script>
 </body>
