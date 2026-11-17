@@ -169,60 +169,60 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ptr.spin svg{animation:spin 1s linear infinite}
 
 /* ================= FUTURISTISCH THEMA ================= */
-:root{--neon:#38f3ff;--neon2:#b26bff;--rain:#38f3ff;--glass:rgba(10,18,32,.55);--hud:rgba(56,243,255,.35)}
+:root{--nr:56,243,255;--nr2:178,107,255;--neon:#38f3ff;--neon2:#b26bff;--rain:#38f3ff;--glass:rgba(10,18,32,.55);--hud:rgba(var(--nr),.35)}
 body{font-family:"Exo 2",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#03060c}
 body::before{background:
   radial-gradient(120% 70% at 50% -10%,color-mix(in srgb,var(--bg1) 55%,transparent),transparent 70%),
-  radial-gradient(80% 50% at 100% 100%,rgba(178,107,255,.18),transparent 70%),
+  radial-gradient(80% 50% at 100% 100%,rgba(var(--nr2),.18),transparent 70%),
   linear-gradient(180deg,#060b16,#02040a)}
 body::after{content:"";position:fixed;left:-50%;right:-50%;bottom:0;height:45vh;z-index:-1;pointer-events:none;
-  background-image:linear-gradient(rgba(56,243,255,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(56,243,255,.16) 1px,transparent 1px);
+  background-image:linear-gradient(rgba(var(--nr),.16) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--nr),.16) 1px,transparent 1px);
   background-size:44px 44px;transform:perspective(320px) rotateX(62deg);transform-origin:bottom;
   -webkit-mask-image:linear-gradient(to top,#000,transparent 85%);mask-image:linear-gradient(to top,#000,transparent 85%);
   animation:gridmove 6s linear infinite}
 @keyframes gridmove{to{background-position:0 44px,0 0}}
 #sky svg{fill:rgba(140,230,255,.10)!important;filter:blur(1px)}
 .place,.temp,.big,.card h2,.hour .t,.day .d,.rainaxis,.radarctl .rt,.panel h3{font-family:Orbitron,sans-serif}
-.place{font-size:22px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:var(--neon);text-shadow:0 0 12px rgba(56,243,255,.6)}
-.temp{font-weight:400;font-size:88px;letter-spacing:-2px;background:linear-gradient(180deg,#fff 30%,var(--neon));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(56,243,255,.45))}
+.place{font-size:22px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:var(--neon);text-shadow:0 0 12px rgba(var(--nr),.6)}
+.temp{font-weight:400;font-size:88px;letter-spacing:-2px;background:linear-gradient(180deg,#fff 30%,var(--neon));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(var(--nr),.45))}
 .cond{letter-spacing:2px;text-transform:uppercase;font-size:16px;font-weight:500}
 .hilo{font-family:Orbitron,sans-serif;font-size:14px;letter-spacing:1px;color:var(--muted)}
 .updated{font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
 .card,.iconbtn,.msg button{background:var(--glass);border:1px solid var(--hud);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);
-  box-shadow:0 0 0 1px rgba(56,243,255,.05) inset,0 0 22px rgba(56,243,255,.10),0 10px 30px rgba(0,0,0,.45)}
+  box-shadow:0 0 0 1px rgba(var(--nr),.05) inset,0 0 22px rgba(var(--nr),.10),0 10px 30px rgba(0,0,0,.45)}
 .card{position:relative;border-radius:6px 18px 6px 18px}
 .card::before,.card::after{content:"";position:absolute;width:14px;height:14px;pointer-events:none;border-color:var(--neon);border-style:solid;filter:drop-shadow(0 0 4px var(--neon))}
 .card::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-top-left-radius:6px}
 .card::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-bottom-right-radius:6px}
 .iconbtn{border-radius:12px}
 .iconbtn svg{stroke:var(--neon);filter:drop-shadow(0 0 4px var(--neon))}
-.card h2{font-size:10px;font-weight:500;letter-spacing:2.5px;color:var(--neon);border-bottom:1px solid rgba(56,243,255,.2)}
+.card h2{font-size:10px;font-weight:500;letter-spacing:2.5px;color:var(--neon);border-bottom:1px solid rgba(var(--nr),.2)}
 .card h2 svg{filter:drop-shadow(0 0 3px var(--neon))}
-.summary{border-bottom:1px solid rgba(56,243,255,.2)}
+.summary{border-bottom:1px solid rgba(var(--nr),.2)}
 .hour .t{font-size:11px;letter-spacing:1px;color:var(--muted)}
 .hour .v{font-family:Orbitron,sans-serif;font-size:15px}
-.rainchart .bar{background:linear-gradient(180deg,var(--neon),var(--neon2));box-shadow:0 0 8px rgba(56,243,255,.55);border-radius:2px 2px 0 0}
-.rainchart .bar.zero{background:rgba(56,243,255,.15);box-shadow:none}
+.rainchart .bar{background:linear-gradient(180deg,var(--neon),var(--neon2));box-shadow:0 0 8px rgba(var(--nr),.55);border-radius:2px 2px 0 0}
+.rainchart .bar.zero{background:rgba(var(--nr),.15);box-shadow:none}
 .rainchart .bar.sel{outline:none;background:#fff;box-shadow:0 0 12px #fff}
-.rainlines div{border-top-color:rgba(56,243,255,.2)}
-.rainticks div{border-left-color:rgba(56,243,255,.12)}
+.rainlines div{border-top-color:rgba(var(--nr),.2)}
+.rainticks div{border-left-color:rgba(var(--nr),.12)}
 .rainaxis{font-size:9px;letter-spacing:.5px}
-.rainspans div{background:rgba(56,243,255,.12);border-color:var(--neon);box-shadow:0 0 10px rgba(56,243,255,.35);border-radius:3px;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:.5px}
-.rainpick{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:.5px;text-shadow:0 0 8px rgba(56,243,255,.6)}
-.day{border-top:1px solid rgba(56,243,255,.12)}
+.rainspans div{background:rgba(var(--nr),.12);border-color:var(--neon);box-shadow:0 0 10px rgba(var(--nr),.35);border-radius:3px;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:.5px}
+.rainpick{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:.5px;text-shadow:0 0 8px rgba(var(--nr),.6)}
+.day{border-top:1px solid rgba(var(--nr),.12)}
 .day .d{font-size:13px;letter-spacing:1px}
 .day .lo,.day .hi{font-family:Orbitron,sans-serif;font-size:14px}
-.range{background:rgba(56,243,255,.10)}
+.range{background:rgba(var(--nr),.10)}
 .range i{box-shadow:0 0 8px rgba(165,229,122,.5)}
 .range b,.meter b{background:#fff;border:0;box-shadow:0 0 8px #fff}
-.big{font-weight:500;font-size:26px;text-shadow:0 0 14px rgba(56,243,255,.4)}
-.compass svg{filter:drop-shadow(0 0 4px rgba(56,243,255,.6))}
+.big{font-weight:500;font-size:26px;text-shadow:0 0 14px rgba(var(--nr),.4)}
+.compass svg{filter:drop-shadow(0 0 4px rgba(var(--nr),.6))}
 .radarwrap{border-radius:4px 14px 4px 14px;border:1px solid var(--hud)}
 .radarctl,.radarfs,.legend{background:rgba(5,12,24,.8);border:1px solid var(--hud)}
 .radarctl input{accent-color:var(--neon)}
-.panel{background:rgba(6,12,24,.92);border-top:1px solid var(--neon);box-shadow:0 -8px 30px rgba(56,243,255,.15);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
-.search{background:rgba(56,243,255,.07);border:1px solid var(--hud)}
-.pitem{background:rgba(56,243,255,.06);border:1px solid rgba(56,243,255,.15)}
+.panel{background:rgba(6,12,24,.92);border-top:1px solid var(--neon);box-shadow:0 -8px 30px rgba(var(--nr),.15);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.search{background:rgba(var(--nr),.07);border:1px solid var(--hud)}
+.pitem{background:rgba(var(--nr),.06);border:1px solid rgba(var(--nr),.15)}
 .ptr{background:rgba(5,12,24,.9);border:1px solid var(--neon)}
 .ptr svg{stroke:var(--neon)}
 .foot{font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:.5px}
@@ -234,15 +234,15 @@ body::after{content:"";position:fixed;left:-50%;right:-50%;bottom:0;height:45vh;
 #flash.on{animation:flash .9s ease-out}
 @keyframes flash{0%{opacity:0}5%{opacity:1}12%{opacity:.2}20%{opacity:.85}100%{opacity:0}}
 .scan{position:fixed;inset:0;z-index:30;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);mix-blend-mode:overlay}
-.scan::after{content:"";position:absolute;left:0;right:0;height:120px;background:linear-gradient(180deg,transparent,rgba(56,243,255,.06),transparent);animation:sweep 7s linear infinite}
+.scan::after{content:"";position:absolute;left:0;right:0;height:120px;background:linear-gradient(180deg,transparent,rgba(var(--nr),.06),transparent);animation:sweep 7s linear infinite}
 @keyframes sweep{from{transform:translateY(-120px)}to{transform:translateY(100vh)}}
 .fxin{animation:fxin .7s cubic-bezier(.2,.8,.2,1) both}
 @keyframes fxin{from{opacity:0;transform:translateY(24px) scale(.97);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
 .card{overflow:hidden}
-.card .shine{position:absolute;top:0;bottom:0;width:40%;left:-60%;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(56,243,255,.10),rgba(255,255,255,.12),transparent);transform:skewX(-20deg);animation:shine 9s ease-in-out infinite}
+.card .shine{position:absolute;top:0;bottom:0;width:40%;left:-60%;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(var(--nr),.10),rgba(255,255,255,.12),transparent);transform:skewX(-20deg);animation:shine 9s ease-in-out infinite}
 @keyframes shine{0%,70%{left:-60%}100%{left:130%}}
 .temp{position:relative;animation:breathe 4s ease-in-out infinite}
-@keyframes breathe{50%{filter:drop-shadow(0 0 28px rgba(56,243,255,.7))}}
+@keyframes breathe{50%{filter:drop-shadow(0 0 28px rgba(var(--nr),.7))}}
 .temp.glitch{animation:glitch .45s steps(2) 1}
 @keyframes glitch{0%{transform:translate(0)}20%{transform:translate(-3px,1px);text-shadow:3px 0 #ff2bd6,-3px 0 var(--neon)}40%{transform:translate(3px,-1px)}60%{transform:translate(-2px,0);clip-path:inset(20% 0 40% 0)}80%{transform:translate(2px,1px);clip-path:none}100%{transform:none}}
 .hero{will-change:transform}
@@ -258,11 +258,11 @@ body::after{content:"";position:fixed;left:-50%;right:-50%;bottom:0;height:45vh;
 /* ================= EFFECTEN 2 ================= */
 body.shake .wrap{animation:shake .5s cubic-bezier(.36,.07,.19,.97)}
 @keyframes shake{10%,90%{transform:translate(-1px,1px)}20%,80%{transform:translate(3px,-2px)}30%,50%,70%{transform:translate(-5px,2px)}40%,60%{transform:translate(5px,-1px)}}
-#boot{position:fixed;inset:0;z-index:200;background:#02050b;display:flex;flex-direction:column;justify-content:center;padding:0 32px;font-family:Orbitron,monospace;color:var(--neon);font-size:12px;letter-spacing:1.5px;line-height:2;text-shadow:0 0 8px rgba(56,243,255,.7);transition:opacity .45s,filter .45s}
+#boot{position:fixed;inset:0;z-index:200;background:#02050b;display:flex;flex-direction:column;justify-content:center;padding:0 32px;font-family:Orbitron,monospace;color:var(--neon);font-size:12px;letter-spacing:1.5px;line-height:2;text-shadow:0 0 8px rgba(var(--nr),.7);transition:opacity .45s,filter .45s}
 #boot.out{opacity:0;filter:blur(8px) brightness(2);pointer-events:none}
 #boot .logo{font-size:26px;font-weight:700;letter-spacing:6px;margin-bottom:18px;animation:flick 1.2s steps(1) infinite}
 @keyframes flick{0%,100%{opacity:1}42%{opacity:.4}44%{opacity:1}71%{opacity:.7}72%{opacity:1}}
-#boot .bar{height:3px;background:rgba(56,243,255,.15);margin-top:18px;overflow:hidden;border-radius:2px}
+#boot .bar{height:3px;background:rgba(var(--nr),.15);margin-top:18px;overflow:hidden;border-radius:2px}
 #boot .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--neon),var(--neon2));box-shadow:0 0 10px var(--neon);transition:width .25s}
 #boot .ok{color:#7dffb2}
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}
@@ -273,7 +273,7 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,
 .ring .r1{animation:rot 18s linear infinite}.ring .r2{animation:rot 11s linear infinite reverse}.ring .r3{animation:rot 40s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
 .hour .ic{animation:bob 3.2s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(-4px);filter:drop-shadow(0 0 6px rgba(56,243,255,.6))}}
+@keyframes bob{50%{transform:translateY(-4px);filter:drop-shadow(0 0 6px rgba(var(--nr),.6))}}
 .range i{transform-origin:left;animation:fill 1s cubic-bezier(.2,.8,.2,1) both}
 @keyframes fill{from{transform:scaleX(0)}}
 .card.tilt{transition:transform .08s linear}
@@ -281,6 +281,36 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,
 .caret::after{content:"▌";color:var(--neon);animation:flick .8s steps(1) infinite;margin-left:1px}
 #sky,#fx{transition:transform .25s ease-out}
 @media (prefers-reduced-motion:reduce){#boot{display:none}.ring svg,.hour .ic,.range i{animation:none!important}}
+
+/* ================= EFFECTEN 3 ================= */
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+.energy{position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;
+  background:conic-gradient(from var(--ang),transparent 0 72%,rgba(var(--nr),.0) 74%,var(--neon) 86%,#fff 88%,rgba(var(--nr2),.8) 90%,transparent 93%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spinb 7s linear infinite}
+@keyframes spinb{to{--ang:360deg}}
+.beam{position:absolute;left:50%;width:300px;margin-left:-150px;height:190px;pointer-events:none;z-index:-1;
+  background:linear-gradient(0deg,rgba(var(--nr),.28),rgba(var(--nr),.04) 70%,transparent),repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 4px);
+  clip-path:polygon(44% 100%,56% 100%,100% 0,0 0);animation:beam 3s ease-in-out infinite}
+.beam::after{content:"";position:absolute;left:50%;bottom:-6px;width:60px;height:12px;margin-left:-30px;border-radius:50%;background:radial-gradient(rgba(255,255,255,.9),rgba(var(--nr),.6) 40%,transparent 70%)}
+@keyframes beam{0%,100%{opacity:.75}47%{opacity:.9}50%{opacity:.5}53%{opacity:.95}}
+.solar{width:230px;height:74px;margin:10px auto 0;position:relative}
+.solar svg{width:100%;height:100%;overflow:visible}
+.solar .lab{position:absolute;bottom:-4px;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:1px;color:var(--muted)}
+.stream{position:fixed;top:0;bottom:0;width:14px;z-index:-1;pointer-events:none;overflow:hidden;font-family:Orbitron,monospace;font-size:9px;line-height:13px;color:rgba(var(--nr),.28);text-align:center;word-break:break-all;
+  -webkit-mask-image:linear-gradient(transparent,#000 20%,#000 80%,transparent);mask-image:linear-gradient(transparent,#000 20%,#000 80%,transparent)}
+.stream div{animation:stream linear infinite}
+@keyframes stream{from{transform:translateY(-50%)}to{transform:translateY(0)}}
+.shock{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:3px solid var(--neon);box-shadow:0 0 20px var(--neon),inset 0 0 20px var(--neon);pointer-events:none;animation:shock .8s cubic-bezier(.1,.7,.3,1) forwards;z-index:3}
+@keyframes shock{to{transform:scale(40);opacity:0;border-width:.2px}}
+.temp{cursor:pointer}
+.hours{perspective:700px}
+.hour{transition:transform .15s ease-out,opacity .15s}
+.fxbar{display:flex;gap:8px;justify-content:center;margin:14px 0 6px}
+.fxbar button{font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:1px;padding:8px 12px;border-radius:10px;border:1px solid var(--hud);background:var(--glass);color:var(--neon)}
+.fxbar button.off{color:var(--faint);border-color:rgba(255,255,255,.12)}
+.nofx #fx,.nofx #trail,.nofx .scan,.nofx .ring,.nofx .beam,.nofx .stream,.nofx .energy,.nofx .shine,.nofx body::after{display:none!important}
+.nofx .temp,.nofx .hour .ic{animation:none!important}
+@media (prefers-reduced-motion:reduce){.energy,.beam,.stream div{animation:none!important}}
 </style>
 </head>
 <body>
@@ -569,6 +599,7 @@ function render(d, stale){
   $("place").innerHTML = (place.gps ? loc : "") + escapeHTML(place.name);
   $("temp").textContent = R(c.temperature_2m) + "°";
   window.__wind = [c.wind_speed_10m || 0, c.wind_direction_10m || 0];
+  setTimeout(() => document.dispatchEvent(new CustomEvent("wx", {detail:{t:c.temperature_2m, now:c.time, rise:dy.sunrise[0], set:dy.sunset[0], rise2:dy.sunrise[1], isDay:c.is_day}})), 0);
   $("cond").textContent = wmo(c.weather_code)[0];
   $("hilo").textContent = `H:${R(dy.temperature_2m_max[0])}°  L:${R(dy.temperature_2m_min[0])}°`;
   const t = new Date(d.at);
@@ -905,19 +936,30 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
     while(pts[pts.length-1][1] < H*rnd(.45,.7)){ const [x,y] = pts[pts.length-1]; pts.push([x+rnd(-40,40), y+rnd(20,50)]); }
     return {pts, t:0};
   }
+  let touch = null;
+  document.addEventListener("pointerdown", e => { touch = {x:e.clientX, y:e.clientY}; }, {passive:true});
+  document.addEventListener("pointermove", e => { if(touch || (e.pointerType === "mouse" && e.buttons)) touch = {x:e.clientX, y:e.clientY}; }, {passive:true});
+  ["pointerup","pointercancel"].forEach(ev => document.addEventListener(ev, () => { touch = null; }, {passive:true}));
+  function shield(p, R, k){ // duw deeltjes weg van je vinger (paraplu)
+    if(!touch) return; const dx = p.x - touch.x, dy = p.y - touch.y, d = Math.hypot(dx, dy);
+    if(d < R && d > .1){ const f = (R - d)/R*k; p.x += dx/d*f; p.y += dy/d*f*(dy < 0 ? .4 : 1); }
+  }
   function frame(ts){
     const dt = Math.min(3, (ts - last)/16.7 || 1); last = ts;
     ctx.clearRect(0,0,W,H);
+    if(document.documentElement.classList.contains("nofx")){ running = false; return; }
     if(mode === "rain" || mode === "storm"){
       ctx.lineCap = "round";
       for(const p of parts){
         ctx.strokeStyle = `rgba(120,240,255,${.25+.45*p.z})`; ctx.lineWidth = p.z*1.3;
         const sl = windX(); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.l*sl, p.y - p.l); ctx.stroke();
-        p.y += p.v*dt; p.x += p.v*sl*dt;
+        p.y += p.v*dt; p.x += p.v*sl*dt; shield(p, 95, 14);
         if(p.y > H){ if(p.z > .75){ ctx.strokeStyle = "rgba(120,240,255,.5)"; ctx.beginPath(); ctx.ellipse(p.x, H-4, 6*p.z, 1.5, 0, 0, 6.3); ctx.stroke(); } Object.assign(p, spawn(false)); p.x = rnd(-80,W+80); if(p.x < 0 && windX() < 0) p.x += W; if(p.x > W && windX() > 0) p.x -= W; }
       }
+      if(touch){ ctx.strokeStyle = `rgba(${window.NR||"56,243,255"},.7)`; ctx.lineWidth = 2; ctx.shadowColor = `rgb(${window.NR||"56,243,255"})`; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.arc(touch.x, touch.y, 80, Math.PI*1.1, Math.PI*1.9); ctx.stroke(); ctx.shadowBlur = 0; }
       if(mode === "storm"){
-        if(ts > nextBolt){ bolt = drawBolt(); nextBolt = ts + rnd(4000,11000); flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
+        if(ts > nextBolt){ bolt = drawBolt(); nextBolt = ts + rnd(4000,11000); flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on"); window.SFX && SFX.thunder();
           setTimeout(() => { document.body.classList.add("shake"); navigator.vibrate && navigator.vibrate([30,40,60]); setTimeout(() => document.body.classList.remove("shake"), 600); }, rnd(300,1200)); }
         if(bolt){ bolt.t += dt; const a = Math.max(0, 1 - bolt.t/18);
           ctx.strokeStyle = `rgba(220,240,255,${a})`; ctx.lineWidth = 2.5; ctx.shadowColor = "#9fd8ff"; ctx.shadowBlur = 20;
@@ -926,7 +968,7 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
       }
     }else if(mode === "snow"){
       for(const p of parts){
-        p.ph += .02*dt; p.y += p.v*dt; p.x += (Math.sin(p.ph)*.5 + windX()*2)*dt; if(p.x > W+10) p.x = -10; if(p.x < -10) p.x = W+10;
+        p.ph += .02*dt; p.y += p.v*dt; p.x += (Math.sin(p.ph)*.5 + windX()*2)*dt; if(p.x > W+10) p.x = -10; if(p.x < -10) p.x = W+10; shield(p, 110, 6);
         const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*3); g.addColorStop(0,"rgba(230,250,255,.95)"); g.addColorStop(1,"rgba(56,243,255,0)");
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*3,0,6.3); ctx.fill();
         if(p.y > H+10) Object.assign(p, spawn(false));
@@ -954,7 +996,8 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
       if(mode === "clear" && day){ const g = ctx.createRadialGradient(W*.85,H*.06,0,W*.85,H*.06,W*.7); g.addColorStop(0,"rgba(255,230,160,.22)"); g.addColorStop(.3,"rgba(56,243,255,.06)"); g.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle = g; ctx.fillRect(0,0,W,H); }
       for(const p of parts){
         p.ph += .02*dt; p.y -= p.v*dt; p.x += Math.sin(p.ph)*.3*dt;
-        ctx.fillStyle = `rgba(56,243,255,${.25+.35*Math.abs(Math.sin(p.ph))})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.3); ctx.fill();
+        if(touch){ const dx = touch.x - p.x, dy = touch.y - p.y, d = Math.hypot(dx,dy); if(d < 220){ p.x += dx/d*1.6*dt; p.y += dy/d*1.6*dt; } }
+        ctx.fillStyle = `rgba(${window.NR||"56,243,255"},${.25+.35*Math.abs(Math.sin(p.ph))})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.3); ctx.fill();
         if(p.y < -10) Object.assign(p, spawn(false));
       }
     }
@@ -963,7 +1006,7 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   let running = false;
   function start(){ if(!running && !reduce){ running = true; requestAnimationFrame(frame); } }
   document.addEventListener("visibilitychange", () => { if(!document.hidden) start(); });
-  window.FX = {set(k, isDay, code){ const nk = k + isDay; if(nk === mode + day && parts.length) return; mode = k; day = !!isDay; heavy = [65,67,82,95,96,99].includes(code); nextBolt = performance.now() + 2500; make(); start(); }};
+  window.FX = {start, set(k, isDay, code){ const nk = k + isDay; if(nk === mode + day && parts.length) return; mode = k; day = !!isDay; heavy = [65,67,82,95,96,99].includes(code); nextBolt = performance.now() + 2500; make(); start(); }};
   if(window.__fx) FX.set(...window.__fx);
 
   /* kaarten laten invliegen + glans */
@@ -1019,7 +1062,7 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
     const lines = ["VERBINDING SATELLIET","LOCATIE TRIANGULEREN","ATMOSFEER SCANNEN","NEERSLAGRADAR SYNCEN","HOLOGRAM LADEN"];
     let i = 0;
     const next = () => {
-      if(i < lines.length){ $("bl").insertAdjacentHTML("beforeend", `<div>&gt; ${lines[i]}… <span class="ok">OK</span></div>`); $("bb").style.width = ((i+1)/lines.length*100) + "%"; i++; setTimeout(next, rnd(180,320)); }
+      if(i < lines.length){ $("bl").insertAdjacentHTML("beforeend", `<div>&gt; ${lines[i]}… <span class="ok">OK</span></div>`); window.SFX && SFX.blip(500 + i*180, .05); $("bb").style.width = ((i+1)/lines.length*100) + "%"; i++; setTimeout(next, rnd(180,320)); }
       else setTimeout(() => { b.classList.add("out"); setTimeout(() => b.remove(), 500); }, 250);
     };
     setTimeout(next, 250);
@@ -1030,10 +1073,10 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   const hero = document.querySelector(".hero"), temp = $("temp");
   const ring = document.createElement("div"); ring.className = "ring";
   let ticks = ""; for(let a = 0; a < 360; a += 6) ticks += `<line x1="115" y1="${a % 30 ? 6 : 0}" x2="115" y2="12" transform="rotate(${a} 115 115)"/>`;
-  ring.innerHTML = `<svg viewBox="0 0 230 230"><g class="r3" style="transform-origin:115px 115px" stroke="rgba(56,243,255,.35)" stroke-width="1">${ticks}</g>
-    <circle class="r1" style="transform-origin:115px 115px" cx="115" cy="115" r="96" fill="none" stroke="rgba(56,243,255,.55)" stroke-width="1.5" stroke-dasharray="60 14 6 14"/>
-    <circle class="r2" style="transform-origin:115px 115px" cx="115" cy="115" r="84" fill="none" stroke="rgba(178,107,255,.5)" stroke-width="3" stroke-dasharray="2 10"/>
-    <circle cx="115" cy="115" r="72" fill="url(#rg)"/><defs><radialGradient id="rg"><stop offset="0" stop-color="rgba(56,243,255,.18)"/><stop offset="1" stop-color="rgba(56,243,255,0)"/></radialGradient></defs></svg>`;
+  ring.innerHTML = `<svg viewBox="0 0 230 230"><g class="r3" style="transform-origin:115px 115px;stroke:rgba(var(--nr),.35)" stroke-width="1">${ticks}</g>
+    <circle class="r1" cx="115" cy="115" r="96" fill="none" style="transform-origin:115px 115px;stroke:rgba(var(--nr),.55)" stroke-width="1.5" stroke-dasharray="60 14 6 14"/>
+    <circle class="r2" cx="115" cy="115" r="84" fill="none" style="transform-origin:115px 115px;stroke:rgba(var(--nr2),.5)" stroke-width="3" stroke-dasharray="2 10"/>
+    <circle cx="115" cy="115" r="72" fill="url(#rg)"/><defs><radialGradient id="rg"><stop offset="0" style="stop-color:rgba(var(--nr),.18)"/><stop offset="1" style="stop-color:rgba(var(--nr),0)"/></radialGradient></defs></svg>`;
   hero.insertBefore(ring, hero.firstChild);
   const placeRing = () => { ring.style.top = (temp.offsetTop + temp.offsetHeight/2 - 115) + "px"; };
   addEventListener("resize", placeRing); new ResizeObserver(placeRing).observe(temp); placeRing();
@@ -1112,8 +1155,9 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
       if(sparks.length > 260) sparks.splice(0, sparks.length - 260); run();
     }, {passive:true});
     const warp = () => { for(let i = 0; i < 140; i++) streaks.push({a:rnd(0,6.3), d:rnd(5,40), v:rnd(2,5), l:1, h:rnd(180,280)}); run(); };
-    const br = $("btnRefresh"); br && br.addEventListener("click", warp);
+    const br = $("btnRefresh"); br && br.addEventListener("click", () => { warp(); window.SFX && SFX.warp(); });
     window.FXwarp = warp;
+    window.FXspark = (x, y, n, sp) => { for(let i = 0; i < n; i++){ const a = rnd(0,6.3), v = rnd(1, sp); sparks.push({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, l:1, h:rnd(160,300)}); } run(); };
   }
 
   /* 7. kantelen van de telefoon = parallax, schudden = vernieuwen */
@@ -1133,6 +1177,109 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   /* 8. uur-iconen golvend laten zweven */
   const stagger = () => document.querySelectorAll(".hour .ic").forEach((el,i) => el.style.animationDelay = (i*.18) + "s");
   new MutationObserver(stagger).observe(document.body, {childList:true, subtree:true}); stagger();
+})();
+</script>
+
+<script>
+/* ================= EFFECTEN 3 ================= */
+(function(){
+  const $ = id => document.getElementById(id), root = document.documentElement, reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const store = (k, v) => { try{ if(v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }catch(e){ return null; } };
+
+  /* --- geluid (Web Audio, geen bestanden) --- */
+  let ac = null, soundOn = store("snd") !== "0";
+  const A = () => { if(!soundOn) return null; if(!ac){ try{ ac = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return null; } } if(ac.state === "suspended") ac.resume(); return ac; };
+  function tone(f1, f2, dur, vol, type){ const a = A(); if(!a) return; const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = type || "sine"; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur); o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .02); }
+  function noise(dur, vol, f1, f2){ const a = A(); if(!a) return; const n = a.sampleRate*dur, b = a.createBuffer(1, n, a.sampleRate), d = b.getChannelData(0);
+    for(let i = 0; i < n; i++) d[i] = (Math.random()*2 - 1) * Math.pow(1 - i/n, 1.5);
+    const s = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime; s.buffer = b; fl.type = "lowpass";
+    fl.frequency.setValueAtTime(f1, t); fl.frequency.exponentialRampToValueAtTime(f2, t + dur); g.gain.value = vol; s.connect(fl).connect(g).connect(a.destination); s.start(t); }
+  window.SFX = {
+    blip:(f, v) => tone(f || 1400, (f || 1400)*.5, .07, v || .035),
+    warp:() => { tone(120, 1800, .7, .05, "sawtooth"); noise(.8, .25, 400, 6000); },
+    zap:() => { tone(1800, 80, .35, .06, "square"); noise(.3, .2, 5000, 300); },
+    thunder:() => setTimeout(() => noise(2.6, .9, 900, 60), 400)
+  };
+  document.addEventListener("pointerdown", e => { if(e.target.closest("button,.card,.day,.pitem,.warn")) SFX.blip(1300 + Math.random()*400); }, {passive:true});
+
+  /* --- kleur volgt de temperatuur --- */
+  const stops = [[-10,[200,90,80],[230,90,70]],[0,[190,100,62],[250,95,70]],[10,[184,100,61],[272,100,71]],[17,[160,100,58],[190,100,60]],[23,[45,100,60],[15,100,60]],[30,[350,100,62],[310,100,60]]];
+  const hsl2rgb = (h,s,l) => { s/=100; l/=100; const k = n => (n + h/30) % 12, a = s*Math.min(l,1-l), f = n => l - a*Math.max(-1, Math.min(k(n)-3, 9-k(n), 1)); return [f(0),f(8),f(4)].map(x => Math.round(x*255)); };
+  function hue(t){
+    let i = 0; while(i < stops.length - 2 && t > stops[i+1][0]) i++;
+    const [t0,a0,b0] = stops[i], [t1,a1,b1] = stops[i+1], k = Math.max(0, Math.min(1, (t - t0)/(t1 - t0)));
+    const mix = (x, y) => { let dh = y[0] - x[0]; if(dh > 180) dh -= 360; if(dh < -180) dh += 360; return [(x[0] + dh*k + 360) % 360, x[1] + (y[1]-x[1])*k, x[2] + (y[2]-x[2])*k]; };
+    const n1 = hsl2rgb(...mix(a0,a1)), n2 = hsl2rgb(...mix(b0,b1));
+    root.style.setProperty("--nr", n1.join(",")); root.style.setProperty("--nr2", n2.join(","));
+    root.style.setProperty("--neon", `rgb(${n1})`); root.style.setProperty("--neon2", `rgb(${n2})`); root.style.setProperty("--rain", `rgb(${n1})`);
+    window.NR = n1.join(",");
+  }
+
+  /* --- zonnebaan --- */
+  const hero = document.querySelector(".hero"), upd = $("updated");
+  const solar = document.createElement("div"); solar.className = "solar"; upd.after(solar);
+  const mins = s => { const [d, hm] = s.split("T"), [h, m] = hm.split(":"); return Date.parse(d + "T00:00Z")/60000 + (+h)*60 + (+m); };
+  function drawSolar(x){
+    const rise = mins(x.rise), set = mins(x.set), now = mins(x.now), day = now >= rise && now <= set;
+    let k = day ? (now - rise)/(set - rise) : (() => { const r2 = x.rise2 ? mins(x.rise2) : rise + 1440, from = now > set ? set : set - 1440, to = now > set ? r2 : rise; return (now - from)/(to - from); })();
+    k = Math.max(0, Math.min(1, k)); const a = Math.PI*(1 - k), cx = 115 + Math.cos(a)*100, cy = 66 - Math.sin(a)*58;
+    const hm = s => s.slice(11,16);
+    solar.innerHTML = `<svg viewBox="0 0 230 74"><defs><linearGradient id="sg" x1="0" x2="1"><stop offset="0" style="stop-color:rgba(var(--nr),.1)"/><stop offset="${k}" style="stop-color:var(--neon)"/><stop offset="${Math.min(1,k+.001)}" style="stop-color:rgba(255,255,255,.15)"/></linearGradient>
+      <radialGradient id="sd"><stop offset="0" stop-color="#fff"/><stop offset=".35" style="stop-color:${day ? "#ffd86b" : "#cfe8ff"}"/><stop offset="1" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
+      <line x1="0" y1="66" x2="230" y2="66" style="stroke:rgba(var(--nr),.3)" stroke-dasharray="2 4"/>
+      <path d="M15 66 A100 58 0 0 1 215 66" fill="none" stroke="url(#sg)" stroke-width="2" stroke-dasharray="${day ? "none" : "3 5"}"/>
+      <circle cx="${cx}" cy="${cy}" r="16" fill="url(#sd)"><animate attributeName="r" values="14;18;14" dur="2.5s" repeatCount="indefinite"/></circle>
+      <circle cx="${cx}" cy="${cy}" r="4" fill="#fff"/></svg>
+      <span class="lab" style="left:0">${day ? "↑ " + hm(x.rise) : "↓ " + hm(x.set)}</span><span class="lab" style="right:0">${day ? "↓ " + hm(x.set) : "↑ " + hm(x.rise2 || x.rise)}</span>`;
+  }
+  document.addEventListener("wx", e => { hue(e.detail.t); drawSolar(e.detail); });
+
+  /* --- projectiestraal onder de temperatuur --- */
+  const temp = $("temp"), beam = document.createElement("div"); beam.className = "beam"; hero.insertBefore(beam, hero.firstChild);
+  const placeBeam = () => { beam.style.top = (temp.offsetTop + temp.offsetHeight*.55) + "px"; beam.style.height = (solar.offsetTop - temp.offsetTop - temp.offsetHeight*.55 + 40) + "px"; };
+  new ResizeObserver(placeBeam).observe(hero); addEventListener("resize", placeBeam);
+
+  /* --- datastromen langs de randen --- */
+  const CH = "0123456789°%·+-ABCDEF";
+  [3, 18, null, null].forEach((pos, i) => {
+    const el = document.createElement("div"); el.className = "stream"; el.style[i < 2 ? "left" : "right"] = (i < 2 ? pos : [3, 18][i-2]) + "px";
+    let txt = ""; for(let j = 0; j < 160; j++) txt += CH[Math.random()*CH.length|0];
+    el.innerHTML = `<div style="animation-duration:${14 + i*5}s">${txt}${txt}</div>`; document.body.appendChild(el);
+  });
+
+  /* --- energierand rond kaarten --- */
+  const deco = () => document.querySelectorAll(".card:not([data-en])").forEach((c, i) => { c.dataset.en = 1; const e = document.createElement("div"); e.className = "energy"; e.style.animationDelay = (-i*1.7) + "s"; c.appendChild(e); });
+  new MutationObserver(deco).observe(document.body, {childList:true, subtree:true}); deco();
+
+  /* --- tik op de temperatuur: schokgolf --- */
+  temp.addEventListener("pointerdown", e => {
+    const sh = document.createElement("div"); sh.className = "shock"; hero.appendChild(sh);
+    sh.style.left = (temp.offsetLeft + temp.offsetWidth/2) + "px"; sh.style.top = (temp.offsetTop + temp.offsetHeight/2) + "px"; setTimeout(() => sh.remove(), 850);
+    const r = temp.getBoundingClientRect(); window.FXspark && FXspark(r.left + r.width/2, r.top + r.height/2, 90, 9);
+    temp.classList.remove("glitch"); void temp.offsetWidth; temp.classList.add("glitch"); setTimeout(() => temp.classList.remove("glitch"), 500);
+    document.body.classList.add("shake"); setTimeout(() => document.body.classList.remove("shake"), 500);
+    navigator.vibrate && navigator.vibrate([15, 20, 40]); SFX.zap(); e.stopPropagation();
+  });
+
+  /* --- uurstrook als 3D-carrousel --- */
+  function flow(box){ const r = box.getBoundingClientRect(), mid = r.left + r.width/2;
+    box.querySelectorAll(".hour").forEach(h => { const b = h.getBoundingClientRect(), o = (b.left + b.width/2 - mid)/(r.width/2), c = Math.max(-1, Math.min(1, o));
+      h.style.transform = `rotateY(${(-c*35).toFixed(1)}deg) scale(${(1 - Math.abs(c)*.15).toFixed(3)})`; h.style.opacity = (1 - Math.abs(c)*.45).toFixed(2); }); }
+  const hookHours = () => document.querySelectorAll(".hours:not([data-cf])").forEach(b => { b.dataset.cf = 1; b.addEventListener("scroll", () => flow(b), {passive:true}); requestAnimationFrame(() => flow(b)); });
+  new MutationObserver(() => { hookHours(); document.querySelectorAll(".hours").forEach(b => requestAnimationFrame(() => flow(b))); }).observe(document.body, {childList:true, subtree:true}); hookHours();
+
+  /* --- knoppen: effecten en geluid aan/uit --- */
+  const bar = document.createElement("div"); bar.className = "fxbar";
+  bar.innerHTML = '<button id="tFx"></button><button id="tSnd"></button>';
+  const foot = document.querySelector(".foot"); foot.parentNode.insertBefore(bar, foot);
+  let fxOn = store("fx") !== "0";
+  const paint = () => { $("tFx").textContent = "EFFECTEN " + (fxOn ? "AAN" : "UIT"); $("tFx").classList.toggle("off", !fxOn);
+    $("tSnd").textContent = "GELUID " + (soundOn ? "AAN" : "UIT"); $("tSnd").classList.toggle("off", !soundOn); root.classList.toggle("nofx", !fxOn); };
+  $("tFx").onclick = () => { fxOn = !fxOn; store("fx", fxOn ? "1" : "0"); paint(); if(fxOn && window.FX) FX.start(); };
+  $("tSnd").onclick = () => { soundOn = !soundOn; store("snd", soundOn ? "1" : "0"); paint(); if(soundOn) SFX.blip(1600, .05); };
+  paint();
 })();
 </script>
 </body>
