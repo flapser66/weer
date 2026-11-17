@@ -311,6 +311,38 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,
 .nofx #fx,.nofx #trail,.nofx .scan,.nofx .ring,.nofx .beam,.nofx .stream,.nofx .energy,.nofx .shine,.nofx body::after{display:none!important}
 .nofx .temp,.nofx .hour .ic{animation:none!important}
 @media (prefers-reduced-motion:reduce){.energy,.beam,.stream div{animation:none!important}}
+
+/* ================= EFFECTEN 4 ================= */
+.tcurve svg{width:100%;height:130px;overflow:visible;display:block}
+.tcurve .ln{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.8s cubic-bezier(.4,0,.2,1) .2s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.tcurve .ar{opacity:0;animation:fadein 1s ease .9s forwards}
+@keyframes fadein{to{opacity:1}}
+.tcurve text{font-family:Orbitron,sans-serif;font-size:8px;fill:rgba(255,255,255,.6)}
+.tcurve .tv{font-size:9px;fill:#fff}
+.warn{position:relative;overflow:hidden;animation:alarm 1.4s ease-in-out infinite}
+.warn::after{content:"";position:absolute;inset:-50%;background:conic-gradient(from 0deg,transparent 0 80%,rgba(255,255,255,.45) 90%,transparent 100%);animation:rot 2.2s linear infinite;pointer-events:none;mix-blend-mode:overlay}
+@keyframes alarm{50%{box-shadow:0 0 0 3px rgba(255,80,80,.6),0 0 30px rgba(255,60,60,.7)}}
+.frost{position:fixed;inset:0;z-index:31;pointer-events:none;opacity:0;transition:opacity 3s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4'/%3E%3CfeColorMatrix values='0 0 0 0 .86 0 0 0 0 .95 0 0 0 0 1 0 0 0 1.6 -.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  -webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 45%,transparent 72%,#000 100%);mask-image:radial-gradient(ellipse 75% 65% at 50% 45%,transparent 72%,#000 100%)}
+.frost.on{opacity:.6}
+.heat{position:fixed;left:0;right:0;bottom:0;height:45vh;z-index:-1;pointer-events:none;opacity:0;transition:opacity 3s;
+  background:repeating-linear-gradient(0deg,rgba(255,170,60,.0) 0 14px,rgba(255,150,60,.08) 18px,rgba(255,170,60,0) 26px);background-size:100% 52px;filter:blur(3px);
+  -webkit-mask-image:linear-gradient(to top,#000,transparent);mask-image:linear-gradient(to top,#000,transparent);animation:heat 2.2s linear infinite}
+.heat.on{opacity:1}
+@keyframes heat{to{background-position:0 -52px}}
+.sonar{position:fixed;width:0;height:0;z-index:36;pointer-events:none}
+.sonar i{position:absolute;left:0;top:0;border-radius:50%;border:1.5px solid var(--neon);box-shadow:0 0 10px var(--neon);transform:translate(-50%,-50%);animation:sonar 1.6s ease-out forwards}
+.sonar b{position:absolute;left:-150px;top:-150px;width:300px;height:300px;border-radius:50%;background:conic-gradient(from 0deg,rgba(var(--nr),.45),transparent 25%);animation:rot 1s linear 2,fadein .3s reverse forwards 1.7s;-webkit-mask:radial-gradient(#000 60%,transparent 70%);mask:radial-gradient(#000 60%,transparent 70%)}
+@keyframes sonar{from{width:0;height:0;opacity:1}to{width:300px;height:300px;opacity:0}}
+.card:not(:has(.radarwrap)):not(.tilt):not(.untilt){transform:skewY(var(--sk,0deg))}
+html.turbo{animation:turbo 1.5s linear infinite}
+@keyframes turbo{to{filter:hue-rotate(360deg)}}
+.toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:210;font-family:Orbitron,sans-serif;font-size:26px;font-weight:700;letter-spacing:6px;color:#fff;text-shadow:0 0 20px var(--neon),0 0 40px var(--neon2);pointer-events:none;animation:toast 1.8s ease forwards;white-space:nowrap}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-50%) scale(3)}15%{opacity:1;transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(.8)}}
+.nofx .frost,.nofx .heat{display:none!important}
+@media (prefers-reduced-motion:reduce){.warn,.warn::after,.heat,html.turbo{animation:none!important}}
 </style>
 </head>
 <body>
@@ -599,7 +631,7 @@ function render(d, stale){
   $("place").innerHTML = (place.gps ? loc : "") + escapeHTML(place.name);
   $("temp").textContent = R(c.temperature_2m) + "°";
   window.__wind = [c.wind_speed_10m || 0, c.wind_direction_10m || 0];
-  setTimeout(() => document.dispatchEvent(new CustomEvent("wx", {detail:{t:c.temperature_2m, now:c.time, rise:dy.sunrise[0], set:dy.sunset[0], rise2:dy.sunrise[1], isDay:c.is_day}})), 0);
+  setTimeout(() => document.dispatchEvent(new CustomEvent("wx", {detail:{t:c.temperature_2m, now:c.time, rise:dy.sunrise[0], set:dy.sunset[0], rise2:dy.sunrise[1], isDay:c.is_day, ht:h.time, hv:h.temperature_2m, hp:h.precipitation}})), 0);
   $("cond").textContent = wmo(c.weather_code)[0];
   $("hilo").textContent = `H:${R(dy.temperature_2m_max[0])}°  L:${R(dy.temperature_2m_min[0])}°`;
   const t = new Date(d.at);
@@ -1059,10 +1091,12 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
     const b = document.createElement("div"); b.id = "boot";
     b.innerHTML = '<div class="logo">WEER//OS</div><div id="bl"></div><div class="bar"><i id="bb"></i></div>';
     document.body.appendChild(b);
+    const hr = new Date().getHours(), groet = hr < 6 ? "GOEDENACHT" : hr < 12 ? "GOEDEMORGEN" : hr < 18 ? "GOEDEMIDDAG" : "GOEDENAVOND";
     const lines = ["VERBINDING SATELLIET","LOCATIE TRIANGULEREN","ATMOSFEER SCANNEN","NEERSLAGRADAR SYNCEN","HOLOGRAM LADEN"];
     let i = 0;
     const next = () => {
       if(i < lines.length){ $("bl").insertAdjacentHTML("beforeend", `<div>&gt; ${lines[i]}… <span class="ok">OK</span></div>`); window.SFX && SFX.blip(500 + i*180, .05); $("bb").style.width = ((i+1)/lines.length*100) + "%"; i++; setTimeout(next, rnd(180,320)); }
+      else if(i === lines.length){ i++; $("bl").insertAdjacentHTML("beforeend", `<div style="margin-top:10px;font-size:15px;color:#fff">${groet}, JASPER</div>`); setTimeout(next, 650); }
       else setTimeout(() => { b.classList.add("out"); setTimeout(() => b.remove(), 500); }, 250);
     };
     setTimeout(next, 250);
@@ -1302,6 +1336,86 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptEv = e; inst.style.display = ""; });
   inst.onclick = async () => { if(!promptEv) return; promptEv.prompt(); await promptEv.userChoice; promptEv = null; inst.style.display = "none"; };
   addEventListener("appinstalled", () => { inst.style.display = "none"; });
+})();
+</script>
+
+<script>
+/* ================= EFFECTEN 4 ================= */
+(function(){
+  const $ = id => document.getElementById(id), root = document.documentElement, reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* --- neon temperatuurcurve (24 uur) --- */
+  const hoursCard = $("hours").closest(".card"), tc = document.createElement("section");
+  tc.className = "card tcurve"; tc.innerHTML = '<h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 3 8-9"/></svg>Temperatuurcurve 24 uur</h2><div id="tcv"></div>';
+  hoursCard.after(tc);
+  function curve(x){
+    const now = x.now.slice(0,13); let i0 = x.ht.findIndex(t => t.slice(0,13) >= now); if(i0 < 0) return;
+    const T = x.hv.slice(i0, i0 + 25), P = (x.hp || []).slice(i0, i0 + 25), n = T.length; if(n < 3) return;
+    const lo = Math.min(...T), hi = Math.max(...T), span = Math.max(3, hi - lo), W = Math.max(240, $("tcv").clientWidth || 300), Hh = 100, top = 16;
+    const X = i => 6 + i*(W-12)/(n-1), Y = v => top + (1 - (v - lo)/span)*(Hh - top - 10);
+    let d = `M${X(0)},${Y(T[0])}`;
+    for(let i = 0; i < n - 1; i++){ const p0 = [X(Math.max(0,i-1)), Y(T[Math.max(0,i-1)])], p1 = [X(i), Y(T[i])], p2 = [X(i+1), Y(T[i+1])], p3 = [X(Math.min(n-1,i+2)), Y(T[Math.min(n-1,i+2)])];
+      d += ` C${p1[0] + (p2[0]-p0[0])/6},${p1[1] + (p2[1]-p0[1])/6} ${p2[0] - (p3[0]-p1[0])/6},${p2[1] - (p3[1]-p1[1])/6} ${p2[0]},${p2[1]}`; }
+    const iMax = T.indexOf(hi), iMin = T.indexOf(lo);
+    let labs = "", rain = "";
+    for(let i = 0; i < n; i += 6) labs += `<text x="${X(i)}" y="${Hh + 14}" text-anchor="middle">${i ? x.ht[i0+i].slice(11,13) + ":00" : "NU"}</text><line x1="${X(i)}" y1="${top}" x2="${X(i)}" y2="${Hh}" style="stroke:rgba(var(--nr),.12)"/>`;
+    P.forEach((p, i) => { if(p >= .1) rain += `<rect x="${X(i)-3}" y="${Hh - Math.min(30, p*12)}" width="6" height="${Math.min(30, p*12)}" rx="1" style="fill:rgba(var(--nr2),.45)"/>`; });
+    $("tcv").innerHTML = `<svg viewBox="0 0 ${W} ${Hh + 18}" style="height:auto"><defs>
+      <linearGradient id="tca" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:rgba(var(--nr),.35)"/><stop offset="1" style="stop-color:rgba(var(--nr),0)"/></linearGradient>
+      <filter id="tcg" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      ${labs}${rain}
+      <path class="ar" d="${d} L${X(n-1)},${Hh} L${X(0)},${Hh} Z" fill="url(#tca)"/>
+      <path id="tcp" class="ln" pathLength="1" d="${d}" style="stroke:var(--neon)" filter="url(#tcg)"/>
+      <circle r="4" fill="#fff" filter="url(#tcg)"><animateMotion dur="6s" repeatCount="indefinite" begin="2s"><mpath href="#tcp"/></animateMotion></circle>
+      <circle cx="${X(iMax)}" cy="${Y(hi)}" r="3" style="fill:var(--neon)"/><text class="tv" x="${X(iMax)}" y="${Y(hi) - 6}" text-anchor="middle">${Math.round(hi)}°</text>
+      <circle cx="${X(iMin)}" cy="${Y(lo)}" r="3" style="fill:var(--neon2)"/><text class="tv" x="${X(iMin)}" y="${Y(lo) + 13}" text-anchor="middle">${Math.round(lo)}°</text></svg>`;
+  }
+
+  /* --- vorst aan de randen / hitte-trilling --- */
+  const frost = document.createElement("div"); frost.className = "frost"; document.body.appendChild(frost);
+  const heat = document.createElement("div"); heat.className = "heat"; document.body.appendChild(heat);
+
+  /* --- alarm bij weerwaarschuwing (1x per sessie geluid) --- */
+  let alarmed = false; try{ alarmed = sessionStorage.getItem("alarm") === "1"; }catch(e){}
+  function checkWarn(){
+    if(alarmed || !document.querySelector("#warnings .warn")) return; alarmed = true; try{ sessionStorage.setItem("alarm","1"); }catch(e){}
+    if(window.SFX){ const a = () => { SFX.blip(880, .08); setTimeout(() => SFX.blip(660, .08), 180); }; a(); setTimeout(a, 420); }
+    navigator.vibrate && navigator.vibrate([100,60,100]);
+  }
+
+  document.addEventListener("wx", e => { const x = e.detail; curve(x);
+    frost.classList.toggle("on", x.t <= 0); heat.classList.toggle("on", x.t >= 25); setTimeout(checkWarn, 800); });
+
+  /* --- lang drukken = sonar-scan --- */
+  let lp = null, sx = 0, sy = 0;
+  document.addEventListener("pointerdown", e => { if(e.target.closest("#map,button,input,.rainchart")) return; sx = e.clientX; sy = e.clientY;
+    clearTimeout(lp); lp = setTimeout(() => {
+      if(root.classList.contains("nofx")) return;
+      const s = document.createElement("div"); s.className = "sonar"; s.style.left = sx + "px"; s.style.top = sy + "px";
+      s.innerHTML = '<b></b><i></i><i style="animation-delay:.25s"></i><i style="animation-delay:.5s"></i>'; document.body.appendChild(s); setTimeout(() => s.remove(), 2100);
+      if(window.SFX){ SFX.blip(1046, .09); setTimeout(() => SFX.blip(1046, .04), 500); setTimeout(() => SFX.blip(1046, .02), 1000); }
+      navigator.vibrate && navigator.vibrate(30);
+    }, 550); }, {passive:true});
+  const cancel = e => { if(e.type !== "pointermove" || Math.hypot(e.clientX - sx, e.clientY - sy) > 10) clearTimeout(lp); };
+  ["pointerup","pointercancel","pointermove","scroll"].forEach(ev => addEventListener(ev, cancel, {passive:true}));
+
+  /* --- kaarten 'veren' mee bij snel scrollen --- */
+  if(!reduce){ let ly = scrollY, sk = 0, raf = 0;
+    const tick = () => { sk *= .85; root.style.setProperty("--sk", sk.toFixed(2) + "deg"); if(Math.abs(sk) > .05) raf = requestAnimationFrame(tick); else { root.style.setProperty("--sk", "0deg"); raf = 0; } };
+    addEventListener("scroll", () => { const v = scrollY - ly; ly = scrollY; sk = Math.max(-4, Math.min(4, sk + v*.08)); if(!raf) raf = requestAnimationFrame(tick); }, {passive:true}); }
+
+  /* --- geheim: tik 5x snel op de plaatsnaam = TURBO --- */
+  let taps = [];
+  $("place").addEventListener("click", e => { const t = Date.now(); taps = taps.filter(x => t - x < 2000); taps.push(t);
+    if(taps.length >= 5){ taps = []; e.stopPropagation(); turbo(); } }, true);
+  function turbo(){
+    if(root.classList.contains("turbo")) return;
+    const t = document.createElement("div"); t.className = "toast"; t.textContent = "TURBO MODUS"; document.body.appendChild(t); setTimeout(() => t.remove(), 1900);
+    root.classList.add("turbo"); navigator.vibrate && navigator.vibrate([40,40,40,40,120]);
+    if(window.SFX) [523,659,784,1046,1318].forEach((f,i) => setTimeout(() => SFX.blip(f, .09), i*90));
+    let k = 0; const iv = setInterval(() => { window.FXwarp && FXwarp(); if(++k >= 6) clearInterval(iv); }, 1500);
+    setTimeout(() => root.classList.remove("turbo"), 10000);
+  }
 })();
 </script>
 </body>
