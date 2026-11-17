@@ -1196,13 +1196,28 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
     for(let i = 0; i < n; i++) d[i] = (Math.random()*2 - 1) * Math.pow(1 - i/n, 1.5);
     const s = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime; s.buffer = b; fl.type = "lowpass";
     fl.frequency.setValueAtTime(f1, t); fl.frequency.exponentialRampToValueAtTime(f2, t + dur); g.gain.value = vol; s.connect(fl).connect(g).connect(a.destination); s.start(t); }
+  /* iPhone/Safari: geluid pas 'ontgrendelen' bij een echte tik (touchend/click), en
+     afspelen als media zodat het ook klinkt als de stille modus aan staat */
+  let unlocked = false;
+  function unlock(){
+    if(unlocked || !soundOn) return;
+    try{ if(navigator.audioSession) navigator.audioSession.type = "playback"; }catch(e){}
+    try{ // stil wav-geluidje via <audio> zet iOS in 'media'-modus (negeert stille-modus schakelaar)
+      const au = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+      au.setAttribute("playsinline", ""); au.loop = false; au.play().catch(() => {});
+    }catch(e){}
+    const a = A(); if(!a) return;
+    const b = a.createBuffer(1, 1, 22050), src = a.createBufferSource(); src.buffer = b; src.connect(a.destination); src.start(0);
+    a.resume().then(() => { unlocked = a.state === "running"; });
+  }
+  ["touchend","click","keydown"].forEach(ev => document.addEventListener(ev, unlock, {passive:true}));
   window.SFX = {
-    blip:(f, v) => tone(f || 1400, (f || 1400)*.5, .07, v || .035),
+    blip:(f, v) => tone(f || 1400, (f || 1400)*.5, .08, v || .07),
     warp:() => { tone(120, 1800, .7, .05, "sawtooth"); noise(.8, .25, 400, 6000); },
     zap:() => { tone(1800, 80, .35, .06, "square"); noise(.3, .2, 5000, 300); },
     thunder:() => setTimeout(() => noise(2.6, .9, 900, 60), 400)
   };
-  document.addEventListener("pointerdown", e => { if(e.target.closest("button,.card,.day,.pitem,.warn")) SFX.blip(1300 + Math.random()*400); }, {passive:true});
+  document.addEventListener("click", e => { if(e.target.closest("button,.card,.day,.pitem,.warn")) SFX.blip(1300 + Math.random()*400); });
 
   /* --- kleur volgt de temperatuur --- */
   const stops = [[-10,[200,90,80],[230,90,70]],[0,[190,100,62],[250,95,70]],[10,[184,100,61],[272,100,71]],[17,[160,100,58],[190,100,60]],[23,[45,100,60],[15,100,60]],[30,[350,100,62],[310,100,60]]];
@@ -1278,7 +1293,7 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   const paint = () => { $("tFx").textContent = "EFFECTEN " + (fxOn ? "AAN" : "UIT"); $("tFx").classList.toggle("off", !fxOn);
     $("tSnd").textContent = "GELUID " + (soundOn ? "AAN" : "UIT"); $("tSnd").classList.toggle("off", !soundOn); root.classList.toggle("nofx", !fxOn); };
   $("tFx").onclick = () => { fxOn = !fxOn; store("fx", fxOn ? "1" : "0"); paint(); if(fxOn && window.FX) FX.start(); };
-  $("tSnd").onclick = () => { soundOn = !soundOn; store("snd", soundOn ? "1" : "0"); paint(); if(soundOn) SFX.blip(1600, .05); };
+  $("tSnd").onclick = () => { soundOn = !soundOn; store("snd", soundOn ? "1" : "0"); paint(); if(soundOn){ unlocked = false; unlock(); setTimeout(() => SFX.blip(1600, .08), 60); } };
   paint();
 })();
 </script>
