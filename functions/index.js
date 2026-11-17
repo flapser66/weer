@@ -32,6 +32,14 @@ exports.api = onRequest({cors:true}, async (req, res) => {
   try{
     const path = req.path.replace(/^\/api/, "");
     if(req.method === "GET" && path === "/vapid") return res.json({key:(await vapid()).publicKey});
+    if(req.method === "GET" && path === "/warnings"){
+      const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+      if(!num(lat, -90, 90) || !num(lon, -180, 180)) return res.status(400).end();
+      const list = (await warningsFeed()).filter(w => w.polys.some(pg => inPoly(lat, lon, pg)))
+        .map(({level, event, headline, desc, onset, expires}) => ({level, event, headline, desc, onset, expires}));
+      res.set("Cache-Control", "public, max-age=300");
+      return res.json(list.sort((x, y) => y.level - x.level || Date.parse(x.onset) - Date.parse(y.onset)));
+    }
     if(req.method !== "POST") return res.status(405).end();
     const b = req.body || {};
     if(path === "/subscribe"){
@@ -85,7 +93,9 @@ async function warningsFeed(){
     const par = k => ((info.parameter || []).find(p => p.valueName === k) || {}).value || "";
     const level = parseInt(par("awareness_level")) || 1; if(level < 2) continue;
     const polys = (info.area || []).flatMap(ar => ar.polygon ? [].concat(ar.polygon) : []);
-    out.push({key:level + "|" + (par("awareness_type") || info.event) + "|" + info.onset, level, event:info.event, headline:info.headline || "", polys});
+    const key = level + "|" + (par("awareness_type") || info.event) + "|" + info.onset;
+    if(out.some(o => o.key === key)) continue;
+    out.push({key, level, event:info.event, headline:info.headline || "", desc:info.description || "", onset:info.onset, expires:info.expires, polys});
   }
   return out;
 }

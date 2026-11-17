@@ -69,6 +69,7 @@ function inPoly(lat, lon, poly){
 }
 async function warnings(lat, lon){
   if(!(lat > 50.6 && lat < 53.7 && lon > 3.2 && lon < 7.3)) return [];
+  if(pushHost) return get(`/api/warnings?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`, 12000).catch(() => null);
   try{
     const j = await get("https://feeds.meteoalarm.org/api/v1/warnings/feeds-netherlands", 9000), now = Date.now(), out = [], seen = new Set();
     for(const w of j.warnings || []){
