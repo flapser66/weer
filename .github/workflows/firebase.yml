@@ -24,7 +24,7 @@ jobs:
           set +e
           npx --yes firebase-tools@latest deploy --only hosting,functions,firestore:rules --project weer-jasper --force --non-interactive 2>&1 | tee deploy.log
           code=${PIPESTATUS[0]}
-          if [ $code -ne 0 ]; then grep -v '^\s*$' deploy.log | tail -n 30 | while IFS= read -r l; do echo "::error::$l"; done; fi
+          if [ $code -ne 0 ]; then grep -iE 'error|denied|permission|failed|must|requires|billing' deploy.log | grep -v '^\s*$' | tail -n 9 | while IFS= read -r l; do echo "::error::$l"; done; fi
           exit $code
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
