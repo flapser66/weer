@@ -227,11 +227,39 @@ body::after{content:"";position:fixed;left:-50%;right:-50%;bottom:0;height:45vh;
 .ptr svg{stroke:var(--neon)}
 .foot{font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:.5px}
 @media (prefers-reduced-motion:reduce){body::after{animation:none}}
+
+/* ================= EFFECTEN ================= */
+#fx{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+#flash{position:fixed;inset:0;z-index:40;pointer-events:none;background:radial-gradient(circle at 50% 20%,rgba(200,230,255,.55),rgba(150,120,255,.15) 60%,transparent);opacity:0}
+#flash.on{animation:flash .9s ease-out}
+@keyframes flash{0%{opacity:0}5%{opacity:1}12%{opacity:.2}20%{opacity:.85}100%{opacity:0}}
+.scan{position:fixed;inset:0;z-index:30;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);mix-blend-mode:overlay}
+.scan::after{content:"";position:absolute;left:0;right:0;height:120px;background:linear-gradient(180deg,transparent,rgba(56,243,255,.06),transparent);animation:sweep 7s linear infinite}
+@keyframes sweep{from{transform:translateY(-120px)}to{transform:translateY(100vh)}}
+.fxin{animation:fxin .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fxin{from{opacity:0;transform:translateY(24px) scale(.97);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+.card{overflow:hidden}
+.card .shine{position:absolute;top:0;bottom:0;width:40%;left:-60%;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(56,243,255,.10),rgba(255,255,255,.12),transparent);transform:skewX(-20deg);animation:shine 9s ease-in-out infinite}
+@keyframes shine{0%,70%{left:-60%}100%{left:130%}}
+.temp{position:relative;animation:breathe 4s ease-in-out infinite}
+@keyframes breathe{50%{filter:drop-shadow(0 0 28px rgba(56,243,255,.7))}}
+.temp.glitch{animation:glitch .45s steps(2) 1}
+@keyframes glitch{0%{transform:translate(0)}20%{transform:translate(-3px,1px);text-shadow:3px 0 #ff2bd6,-3px 0 var(--neon)}40%{transform:translate(3px,-1px)}60%{transform:translate(-2px,0);clip-path:inset(20% 0 40% 0)}80%{transform:translate(2px,1px);clip-path:none}100%{transform:none}}
+.hero{will-change:transform}
+.ripple{position:absolute;border-radius:50%;pointer-events:none;border:2px solid var(--neon);box-shadow:0 0 12px var(--neon);transform:translate(-50%,-50%);animation:ripple .6s ease-out forwards;z-index:5}
+@keyframes ripple{from{width:0;height:0;opacity:1}to{width:220px;height:220px;opacity:0}}
+.place svg{animation:ping 2.4s ease-out infinite}
+@keyframes ping{0%,100%{filter:drop-shadow(0 0 2px var(--neon))}50%{filter:drop-shadow(0 0 10px var(--neon))}}
+.rainchart .bar{transform-origin:bottom;animation:grow .8s cubic-bezier(.2,.8,.2,1) both}
+@keyframes grow{from{transform:scaleY(0)}}
+.card:has(.radarwrap.full){backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:visible;animation:none!important;transform:none;filter:none}
+@media (prefers-reduced-motion:reduce){.scan::after,.card .shine,.temp,.fxin,.rainchart .bar,.place svg{animation:none!important}}
 </style>
 </head>
 <body>
 <div class="ptr" id="ptr"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></div>
 <div id="sky"></div>
+<canvas id="fx"></canvas><div id="flash"></div><div class="scan"></div>
 <div class="wrap">
   <div class="topbar">
     <button class="iconbtn" id="btnPlaces" aria-label="Plaatsen">
@@ -349,6 +377,7 @@ function setTheme(code, isDay){
   const kind = wmo(code)[3], t = THEMES[code === 2 ? "clear" : kind][isDay ? 0 : 1];
   const r = document.documentElement.style;
   r.setProperty("--bg1", t[0]); r.setProperty("--bg2", t[1]);
+  window.__fx = [code === 2 ? "cloud" : kind, isDay, code]; if(window.FX) FX.set(...window.__fx);
   const cloudy = code >= 2 && kind !== "fog";
   r.setProperty("--cloud", !isDay ? "rgba(255,255,255,.10)" : kind === "cloud" && code === 2 ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.22)");
   const C = '<svg viewBox="0 0 120 60"><path d="M30 55a22 22 0 0 1-2-44A28 28 0 0 1 80 12a20 20 0 0 1 12 43z"/></svg>';
@@ -817,6 +846,125 @@ document.addEventListener("visibilitychange", () => {
 setInterval(() => { if(document.visibilityState === "visible"){ lastLoad = Date.now(); load(); } }, 10 * 60 * 1000);
 
 if("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+
+<script>
+/* ================= EFFECTEN ================= */
+(function(){
+  const cv = document.getElementById("fx"), ctx = cv.getContext("2d"), flash = document.getElementById("flash");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W, H, DPR, parts = [], mode = "clear", day = true, heavy = false, last = 0, bolt = null, nextBolt = 0, shoot = null;
+  function size(){ DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W*DPR; cv.height = H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  addEventListener("resize", size); size();
+  const rnd = (a,b) => a + Math.random()*(b-a);
+  function make(){
+    parts = [];
+    const n = mode === "rain" || mode === "storm" ? (heavy ? 260 : 150) : mode === "snow" ? 120 : mode === "fog" ? 14 : !day && (mode === "clear") ? 140 : 50;
+    for(let i = 0; i < n; i++) parts.push(spawn(true));
+  }
+  function spawn(init){
+    const p = {x:rnd(0,W), y:init ? rnd(0,H) : -20, z:rnd(.3,1)};
+    if(mode === "rain" || mode === "storm"){ p.v = rnd(12,20)*p.z; p.l = rnd(10,22)*p.z; }
+    else if(mode === "snow"){ p.v = rnd(.4,1.3)*p.z; p.r = rnd(1,3.2)*p.z; p.ph = rnd(0,6.3); }
+    else if(mode === "fog"){ p.r = rnd(120,260); p.v = rnd(.1,.35); p.y = rnd(0,H); p.x = init ? rnd(-200,W) : -260; }
+    else if(!day && mode === "clear"){ p.y = rnd(0,H*.7); p.r = rnd(.4,1.6); p.ph = rnd(0,6.3); p.sp = rnd(.5,2); }
+    else { p.v = rnd(.15,.5)*p.z; p.r = rnd(.8,2.4)*p.z; p.ph = rnd(0,6.3); if(!init) p.y = H+10; }
+    return p;
+  }
+  function drawBolt(){
+    const pts = [[rnd(W*.2,W*.8),0]];
+    while(pts[pts.length-1][1] < H*rnd(.45,.7)){ const [x,y] = pts[pts.length-1]; pts.push([x+rnd(-40,40), y+rnd(20,50)]); }
+    return {pts, t:0};
+  }
+  function frame(ts){
+    const dt = Math.min(3, (ts - last)/16.7 || 1); last = ts;
+    ctx.clearRect(0,0,W,H);
+    if(mode === "rain" || mode === "storm"){
+      ctx.lineCap = "round";
+      for(const p of parts){
+        ctx.strokeStyle = `rgba(120,240,255,${.25+.45*p.z})`; ctx.lineWidth = p.z*1.3;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.l*.25, p.y - p.l); ctx.stroke();
+        p.y += p.v*dt; p.x -= p.v*.25*dt;
+        if(p.y > H){ if(p.z > .75){ ctx.strokeStyle = "rgba(120,240,255,.5)"; ctx.beginPath(); ctx.ellipse(p.x, H-4, 6*p.z, 1.5, 0, 0, 6.3); ctx.stroke(); } Object.assign(p, spawn(false)); p.x = rnd(0,W+60); }
+      }
+      if(mode === "storm"){
+        if(ts > nextBolt){ bolt = drawBolt(); nextBolt = ts + rnd(4000,11000); flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on"); }
+        if(bolt){ bolt.t += dt; const a = Math.max(0, 1 - bolt.t/18);
+          ctx.strokeStyle = `rgba(220,240,255,${a})`; ctx.lineWidth = 2.5; ctx.shadowColor = "#9fd8ff"; ctx.shadowBlur = 20;
+          ctx.beginPath(); bolt.pts.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); ctx.shadowBlur = 0;
+          if(a <= 0) bolt = null; }
+      }
+    }else if(mode === "snow"){
+      for(const p of parts){
+        p.ph += .02*dt; p.y += p.v*dt; p.x += Math.sin(p.ph)*.5*dt;
+        const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*3); g.addColorStop(0,"rgba(230,250,255,.95)"); g.addColorStop(1,"rgba(56,243,255,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*3,0,6.3); ctx.fill();
+        if(p.y > H+10) Object.assign(p, spawn(false));
+      }
+    }else if(mode === "fog"){
+      for(const p of parts){
+        p.x += p.v*dt; const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r); g.addColorStop(0,"rgba(160,220,240,.10)"); g.addColorStop(1,"rgba(160,220,240,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.3); ctx.fill();
+        if(p.x - p.r > W) Object.assign(p, spawn(false));
+      }
+    }else if(!day && mode === "clear"){
+      for(const p of parts){ p.ph += .03*p.sp*dt; ctx.fillStyle = `rgba(210,245,255,${.25+.6*Math.abs(Math.sin(p.ph))})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.3); ctx.fill(); }
+      if(!shoot && Math.random() < .002*dt) shoot = {x:rnd(W*.3,W), y:rnd(0,H*.3), t:0};
+      if(shoot){ shoot.t += dt; const L = 90, x = shoot.x - shoot.t*9, y = shoot.y + shoot.t*4, a = Math.max(0,1-shoot.t/40);
+        const g = ctx.createLinearGradient(x,y,x+L,y-L*.45); g.addColorStop(0,`rgba(255,255,255,${a})`); g.addColorStop(1,"rgba(56,243,255,0)");
+        ctx.strokeStyle = g; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+L,y-L*.45); ctx.stroke(); if(a <= 0) shoot = null; }
+    }else{
+      if(mode === "clear" && day){ const g = ctx.createRadialGradient(W*.85,H*.06,0,W*.85,H*.06,W*.7); g.addColorStop(0,"rgba(255,230,160,.22)"); g.addColorStop(.3,"rgba(56,243,255,.06)"); g.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle = g; ctx.fillRect(0,0,W,H); }
+      for(const p of parts){
+        p.ph += .02*dt; p.y -= p.v*dt; p.x += Math.sin(p.ph)*.3*dt;
+        ctx.fillStyle = `rgba(56,243,255,${.25+.35*Math.abs(Math.sin(p.ph))})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.3); ctx.fill();
+        if(p.y < -10) Object.assign(p, spawn(false));
+      }
+    }
+    if(!document.hidden) requestAnimationFrame(frame); else running = false;
+  }
+  let running = false;
+  function start(){ if(!running && !reduce){ running = true; requestAnimationFrame(frame); } }
+  document.addEventListener("visibilitychange", () => { if(!document.hidden) start(); });
+  window.FX = {set(k, isDay, code){ const nk = k + isDay; if(nk === mode + day && parts.length) return; mode = k; day = !!isDay; heavy = [65,67,82,95,96,99].includes(code); nextBolt = performance.now() + 2500; make(); start(); }};
+  if(window.__fx) FX.set(...window.__fx);
+
+  /* kaarten laten invliegen + glans */
+  const seen = new WeakSet();
+  const io = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ e.target.classList.add("fxin"); io.unobserve(e.target); } }), {threshold:.08});
+  function decorate(){
+    document.querySelectorAll(".card,.warn").forEach((c,i) => {
+      if(seen.has(c)) return; seen.add(c);
+      if(c.classList.contains("card") && !c.querySelector(".shine")){ const sh = document.createElement("div"); sh.className = "shine"; sh.style.animationDelay = (i*1.3 % 9) + "s"; c.appendChild(sh); }
+      c.style.animationDelay = Math.min(i, 6)*70 + "ms"; io.observe(c);
+    });
+  }
+  new MutationObserver(decorate).observe(document.body, {childList:true, subtree:true}); decorate();
+
+  /* temperatuur optellen + af en toe glitch */
+  const tEl = document.getElementById("temp"); let shown = null, mine = null, anim = 0;
+  new MutationObserver(() => {
+    if(tEl.textContent === mine) return; const m = tEl.textContent.match(/^(-?\d+)°$/); if(!m) return; const to = +m[1];
+    if(shown === to || reduce){ shown = to; return; }
+    const from = shown === null ? Math.round(to - 12) : shown, t0 = performance.now(), id = ++anim; shown = to;
+    const step = now => { if(id !== anim) return; const k = Math.min(1,(now-t0)/1100), e = 1-Math.pow(1-k,3); mine = Math.round(from + (to-from)*e) + "°"; tEl.textContent = mine; if(k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }).observe(tEl, {childList:true, characterData:true, subtree:true});
+  setInterval(() => { if(document.hidden || reduce) return; tEl.classList.add("glitch"); setTimeout(() => tEl.classList.remove("glitch"), 500); }, 9000);
+
+  /* neon-ripple bij aantikken */
+  document.addEventListener("pointerdown", e => {
+    const host = e.target.closest(".card,.iconbtn,.pitem,.warn"); if(!host || e.target.closest("#map,.rainchart")) return;
+    const r = host.getBoundingClientRect(), d = document.createElement("span");
+    if(getComputedStyle(host).position === "static") host.style.position = "relative";
+    d.className = "ripple"; d.style.left = (e.clientX - r.left) + "px"; d.style.top = (e.clientY - r.top) + "px";
+    host.appendChild(d); setTimeout(() => d.remove(), 650);
+  }, {passive:true});
+
+  /* parallax van de kop bij scrollen */
+  const hero = document.querySelector(".hero");
+  if(hero && !reduce) addEventListener("scroll", () => { const y = Math.min(scrollY, 300); hero.style.transform = `translateY(${y*.35}px)`; hero.style.opacity = 1 - y/320; }, {passive:true});
+})();
 </script>
 </body>
 </html>
