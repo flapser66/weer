@@ -54,7 +54,7 @@ const BG = (() => {
     if(wet()){
       const sl = windX(); ctx.lineCap = "round";
       for(const p of parts){
-        ctx.strokeStyle = `rgba(120,240,255,${.25 + .45 * p.z})`; ctx.lineWidth = p.z * 1.3;
+        ctx.strokeStyle = S.style === "apple" ? `rgba(255,255,255,${.12 + .3 * p.z})` : `rgba(120,240,255,${.25 + .45 * p.z})`; ctx.lineWidth = p.z * 1.3;
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.l * sl, p.y - p.l); ctx.stroke();
         p.y += p.v * dt; p.x += p.v * sl * dt; shield(p, 95, 14);
         if(p.y > H){
@@ -69,7 +69,7 @@ const BG = (() => {
           const pts = [[rnd(W * .2, W * .8), 0]]; while(pts[pts.length - 1][1] < H * rnd(.45, .7)){ const [x, y] = pts[pts.length - 1]; pts.push([x + rnd(-40, 40), y + rnd(20, 50)]); }
           bolt = {pts, t:0}; nextBolt = ts + rnd(4000, 11000);
           flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on"); SFX.thunder();
-          setTimeout(() => { document.body.classList.add("shake"); vib([30, 40, 60]); setTimeout(() => document.body.classList.remove("shake"), 600); }, rnd(300, 1200));
+          if(S.style !== "apple") setTimeout(() => { document.body.classList.add("shake"); vib([30, 40, 60]); setTimeout(() => document.body.classList.remove("shake"), 600); }, rnd(300, 1200));
         }
         if(bolt){ bolt.t += dt; const a = Math.max(0, 1 - bolt.t / 18);
           ctx.strokeStyle = `rgba(220,240,255,${a})`; ctx.lineWidth = 2.5; ctx.shadowColor = "#9fd8ff"; ctx.shadowBlur = 20;
@@ -348,6 +348,7 @@ function sensors(onShake){
 export function toast(text, small){ const t = document.createElement("div"); t.className = "toast" + (small ? " small" : ""); t.textContent = text; document.body.appendChild(t); setTimeout(() => t.remove(), small ? 2700 : 1900); }
 export function warp(){ TOP.warp(); SFX.warp(); }
 export function shock(hero, temp){
+  if(S.style === "apple") return;
   const sh = document.createElement("div"); sh.className = "shock"; hero.appendChild(sh);
   sh.style.left = (temp.offsetLeft + temp.offsetWidth / 2) + "px"; sh.style.top = (temp.offsetTop + temp.offsetHeight / 2) + "px"; setTimeout(() => sh.remove(), 850);
   const r = temp.getBoundingClientRect(); TOP.spark(r.left + r.width / 2, r.top + r.height / 2, 90, 9);
@@ -387,7 +388,7 @@ export function init({hero, temp, solar, onShake}){
   OV = overlays(); ring = heroDeco(hero, temp, solar); touchFx(); sensors(onShake);
 }
 export function weather({kind, isDay, code, wind, t}){
-  hue(t); BG.set(kind, isDay, code, wind);
+  if(S.style === "apple"){ NR = "255,255,255"; root.style.setProperty("--nr", NR); root.style.setProperty("--nr2", "100,210,255"); } else hue(t); BG.set(kind, isDay, code, wind);
   OV.frost.classList.toggle("on", t <= 0); OV.heat.classList.toggle("on", t >= 25);
 }
 export function restart(){ BG.start(); }

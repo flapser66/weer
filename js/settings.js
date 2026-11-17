@@ -14,9 +14,11 @@ export const CARDS = {
   tiles:  "Details (wind, UV, vocht…)"
 };
 const DEF = {
-  fx: {show:false, bg:true, touch:true, boot:true, hud:true, cards:true},
+  v: 3,
+  style: "apple",                    // apple (klassiek, rustig) | future (futuristisch)
+  fx: {show:false, bg:true, touch:false, boot:false, hud:false, cards:false},
   accent: "auto",                    // auto (volgt temperatuur) | cyan | green | orange | purple
-  sound: true,
+  sound: false,
   wind: "bft",                       // bft | kmh | ms
   order: Object.keys(CARDS),
   hidden: [],
@@ -30,12 +32,14 @@ function load(){
     if(localStorage.getItem("fx") === "0") s.fx = {bg:false, touch:false, boot:false, hud:false, cards:false};
     if(localStorage.getItem("snd") === "0") s.sound = false;
   }catch(e){}
+  if(s.v !== 3){ s.v = 3; s.style = "apple"; s.fx = {...DEF.fx}; s.sound = false; }   // overstap naar de rustige stijl
   const out = {...DEF, ...s, fx:{...DEF.fx, ...(s.fx || {})}, push:{...DEF.push, ...(s.push || {})}};
   // nieuwe kaarten aanvullen, onbekende weghalen
   out.order = out.order.filter(k => CARDS[k]).concat(Object.keys(CARDS).filter(k => !out.order.includes(k)));
   return out;
 }
 export const S = load();
+try{ localStorage.removeItem("fx"); localStorage.removeItem("snd"); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
 const listeners = [];
 export function onChange(fn){ listeners.push(fn); }
 export function save(){
@@ -44,6 +48,6 @@ export function save(){
 }
 export function apply(){
   const c = document.documentElement.classList;
-  c.toggle("calm", !S.fx.show); c.toggle("no-bg", !S.fx.bg); c.toggle("no-touch", !S.fx.touch); c.toggle("no-hud", !S.fx.hud); c.toggle("no-cards", !S.fx.cards);
+  c.toggle("apple", S.style === "apple"); c.toggle("calm", !S.fx.show); c.toggle("no-bg", !S.fx.bg); c.toggle("no-touch", !S.fx.touch); c.toggle("no-hud", !S.fx.hud); c.toggle("no-cards", !S.fx.cards);
 }
 export const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;

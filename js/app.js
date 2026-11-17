@@ -29,6 +29,8 @@ const WMO = {
 };
 const wmo = c => WMO[c] || ["Onbekend","🌡️","🌡️","cloud"];
 const icon = (c, day, size) => wxIcon(c, day, size);
+const SKY = {clear:[["#3f87d6","#86c1f2"],["#0b1a33","#22406b"]], cloud:[["#62778f","#a2b2c4"],["#1c2633","#3b4859"]], rain:[["#4b5a6b","#7b8898"],["#151d28","#323e4d"]],
+  snow:[["#8197ae","#c5d2de"],["#2a3646","#4d5d70"]], fog:[["#848d98","#b8bfc7"],["#262c33","#474f58"]], storm:[["#373d4b","#5d6676"],["#12151d","#2c3240"]]};
 const BG = {clear:["#2a64a8","#0b1834"], cloud:["#46576b","#1c2430"], rain:["#38475a","#111923"], snow:["#566c86","#24303f"], fog:["#575e68","#262b31"], storm:["#2a2c40","#141522"]};
 
 /* ---------- eenheden ---------- */
@@ -278,6 +280,8 @@ function render(d, stale){
 
   // thema + effecten
   document.documentElement.style.setProperty("--bg1", BG[kind][c.is_day ? 0 : 1]);
+  const sky = SKY[kind][c.is_day ? 0 : 1]; document.documentElement.style.setProperty("--sky1", sky[0]); document.documentElement.style.setProperty("--sky2", sky[1]);
+  document.querySelector('meta[name="theme-color"]').content = S.style === "apple" ? sky[0] : "#060b16";
   FX.weather({kind, isDay:c.is_day, code:c.weather_code, wind:[c.wind_speed_10m || 0, c.wind_direction_10m || 0], t:c.temperature_2m});
 
   // dashboard
@@ -610,14 +614,16 @@ function goPlace(i){
 const sw = (key, on, label, sub) => `<div class="row"><div class="n">${label}${sub ? `<small>${sub}</small>` : ""}</div><button class="sw${on ? " on" : ""}" data-sw="${key}" aria-label="${label}"></button></div>`;
 function renderSettings(){
   const f = S.fx, ph = pushSupported();
-  let h = `<div class="label">Stijl</div><div class="row"><div class="n">Uitstraling<small>Rustig = leesbaar · Show = alle effecten</small></div><div class="seg"><button data-show="0" class="${S.fx.show ? "" : "on"}">Rustig</button><button data-show="1" class="${S.fx.show ? "on" : ""}">Show</button></div></div>
+  const fut = S.style !== "apple";
+  let h = `<div class="label">Stijl</div><div class="row"><div class="n">Uiterlijk<small>Klassiek = rustig zoals Apple</small></div><div class="seg"><button data-style="apple" class="${fut ? "" : "on"}">Klassiek</button><button data-style="future" class="${fut ? "on" : ""}">Futuristisch</button></div></div>` +
+    (!fut ? `<div class="label">Effecten</div>` + sw("fx.bg", f.bg, "Weer-animaties", "Regen, sneeuw en sterren op de achtergrond") : "") + (fut ? `<div class="row"><div class="n">Uitstraling<small>Rustig = leesbaar · Show = alle effecten</small></div><div class="seg"><button data-show="0" class="${S.fx.show ? "" : "on"}">Rustig</button><button data-show="1" class="${S.fx.show ? "on" : ""}">Show</button></div></div>
     <div class="row"><div class="n">Kleur<small>Automatisch volgt de temperatuur</small></div></div><div class="seg" style="margin-top:6px">${[["auto", "Auto"], ["cyan", "Cyaan"], ["green", "Groen"], ["orange", "Oranje"], ["purple", "Paars"]].map(([k, l]) => `<button data-accent="${k}" class="${S.accent === k ? "on" : ""}" style="flex:1">${l}</button>`).join("")}</div>
     <div class="label">Effecten</div>` +
     sw("fx.bg", f.bg, "Weer-animaties", "Regen, sneeuw, bliksem, sterren, raster") +
     sw("fx.touch", f.touch, "Aanraak-effecten", "Vonken, rimpels, kantelen, sonar, paraplu") +
     sw("fx.hud", f.hud, "HUD", "Ring, projectiestraal, scanlijnen, datastromen") +
     sw("fx.cards", f.cards, "Kaart-animaties", "Invliegen, glans, decoderen, typen") +
-    sw("fx.boot", f.boot, "Opstartscherm") +
+    sw("fx.boot", f.boot, "Opstartscherm") : "") +
     `<div class="label">Geluid</div>` + sw("sound", S.sound, "Sci-fi geluiden") +
     `<div class="label">Eenheden</div><div class="row"><div class="n">Windsnelheid</div><div class="seg">${[["bft", "Bft"], ["kmh", "km/u"], ["ms", "m/s"]].map(([k, l]) => `<button data-wind="${k}" class="${S.wind === k ? "on" : ""}">${l}</button>`).join("")}</div></div>` +
     `<div class="label">Kaarten</div><div class="ptext">Zet kaarten aan/uit en verander de volgorde met de pijltjes.</div>` +
@@ -643,6 +649,9 @@ function renderSettings(){
 $("settingsBody").addEventListener("click", async e => {
   const s = e.target.closest("[data-sw]"), c = e.target.closest("[data-card]"), m = e.target.closest("[data-mv]"), w = e.target.closest("[data-wind]");
   const sh = e.target.closest("[data-show]"), ac = e.target.closest("[data-accent]");
+  const sy = e.target.closest("[data-style]");
+  if(sy){ S.style = sy.dataset.style; if(S.style === "future") S.fx = {...S.fx, touch:true, hud:true, cards:true, boot:true}; else S.fx = {...S.fx, show:false, touch:false, hud:false, cards:false, boot:false};
+    save(); renderSettings(); if(lastData) render(lastData); FX.restart(); return; }
   if(sh){ S.fx.show = sh.dataset.show === "1"; save(); renderSettings(); if(lastData) render(lastData); return; }
   if(ac){ S.accent = ac.dataset.accent; save(); renderSettings(); if(lastData) render(lastData); return; }
   if(s){
