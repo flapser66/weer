@@ -1,8 +1,8 @@
 // Service worker: app offline beschikbaar + pushmeldingen
-const CACHE = "weer-v22";
+const CACHE = "weer-v30";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest", "./css/app.css",
-  "./js/app.js", "./js/fx.js", "./js/sound.js", "./js/settings.js", "./js/push.js",
+  "./js/app.js", "./js/fx.js", "./js/sound.js", "./js/settings.js", "./js/push.js", "./js/icons.js", "./js/astro.js",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"

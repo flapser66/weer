@@ -5,6 +5,8 @@ import {S, save, apply, CARDS, onChange} from "./settings.js";
 import {SFX, unlock} from "./sound.js";
 import * as FX from "./fx.js";
 import {pushHost, pushSupported, enablePush, disablePush, syncPush} from "./push.js";
+import {wxIcon, moonIcon} from "./icons.js";
+import {sunTimes, moonIllumination, moonTimes, phaseName, nextPhase} from "./astro.js";
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -26,7 +28,7 @@ const WMO = {
   95:["Onweer","⛈️","⛈️","storm"], 96:["Onweer met hagel","⛈️","⛈️","storm"], 99:["Zwaar onweer met hagel","⛈️","⛈️","storm"]
 };
 const wmo = c => WMO[c] || ["Onbekend","🌡️","🌡️","cloud"];
-const icon = (c, day) => day === 0 ? wmo(c)[2] : wmo(c)[1];
+const icon = (c, day, size) => wxIcon(c, day, size);
 const BG = {clear:["#2a64a8","#0b1834"], cloud:["#46576b","#1c2430"], rain:["#38475a","#111923"], snow:["#566c86","#24303f"], fog:["#575e68","#262b31"], storm:["#2a2c40","#141522"]};
 
 /* ---------- eenheden ---------- */
@@ -50,8 +52,8 @@ function forecastURL(lat, lon){
   return "https://api.open-meteo.com/v1/forecast?" + new URLSearchParams({
     latitude:lat.toFixed(4), longitude:lon.toFixed(4), timezone:"auto", forecast_days:"10",
     current:"temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,dew_point_2m",
-    hourly:"temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,is_day,uv_index,visibility,wind_speed_10m,wind_gusts_10m",
-    daily:"weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant",
+    hourly:"temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,is_day,uv_index,visibility,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,dew_point_2m,cloud_cover",
+    daily:"weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,daylight_duration,precipitation_hours",
     minutely_15:"precipitation", forecast_minutely_15:"12"
   });
 }
@@ -61,7 +63,13 @@ async function buienradar(lat, lon){
   if(rows.length < 6) throw new Error("leeg");
   return rows.map(([v, time]) => ({time:time.trim(), mm:Number(v) > 0 ? Math.pow(10, (Number(v) - 109) / 32) : 0}));
 }
-const airQuality = (lat, lon) => get(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi,pm2_5,grass_pollen,birch_pollen&timezone=auto`, 8000).then(j => j.current).catch(() => null);
+const POLLEN = ["grass_pollen", "birch_pollen", "alder_pollen", "mugwort_pollen", "ragweed_pollen"];
+const airQuality = (lat, lon) => get(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,${POLLEN.join(",")}&hourly=european_aqi,${POLLEN.join(",")}&forecast_days=4&timezone=auto`, 8000)
+  .then(j => ({...j.current, hourly:j.hourly})).catch(() => null);
+const MODELS = [["knmi_seamless", "KNMI"], ["ecmwf_ifs025", "ECMWF"], ["icon_seamless", "DWD"], ["gfs_seamless", "GFS"], ["meteofrance_seamless", "MétéoFr"]];
+const models = (lat, lon) => get("https://api.open-meteo.com/v1/forecast?" + new URLSearchParams({latitude:lat.toFixed(3), longitude:lon.toFixed(3), timezone:"auto", forecast_days:"7",
+  daily:"temperature_2m_max,temperature_2m_min,precipitation_sum", models:MODELS.map(m => m[0]).join(",")}), 10000).catch(() => null);
+const yesterday = (lat, lon) => get(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&timezone=auto&past_days=1&forecast_days=1&daily=temperature_2m_max,daylight_duration`, 8000).then(j => j.daily).catch(() => null);
 function inPoly(lat, lon, poly){
   const p = poly.trim().split(/\s+/).map(x => x.split(",").map(Number)); let inside = false;
   for(let i = 0, j = p.length - 1; i < p.length; j = i++){ const [yi, xi] = p[i], [yj, xj] = p[j]; if(((yi > lat) !== (yj > lat)) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside; }
@@ -114,8 +122,9 @@ async function load(){
       }catch(e){ if(!current || current.lat == null){ msg("Ik kan je locatie niet bepalen. Sta locatietoegang toe, of kies een plaats.", true); return; } }
     }
     const p = current;
-    const [fc, rain, aq, warn] = await Promise.all([get(forecastURL(p.lat, p.lon)), buienradar(p.lat, p.lon).catch(() => null), airQuality(p.lat, p.lon), warnings(p.lat, p.lon)]);
-    const data = {fc, rain, aq, warn, place:p, at:Date.now()};
+    const [fc, rain, aq, warn, mod, yd] = await Promise.all([get(forecastURL(p.lat, p.lon)), buienradar(p.lat, p.lon).catch(() => null), airQuality(p.lat, p.lon), warnings(p.lat, p.lon),
+      S.hidden.includes("models") ? null : models(p.lat, p.lon), yesterday(p.lat, p.lon)]);
+    const data = {fc, rain, aq, warn, mod, yd, place:p, at:Date.now()};
     store.set("weer.last", data); render(data);
     if(p.gps) syncPush(p);
   }catch(e){
@@ -167,6 +176,82 @@ function bikeScore(h, i){
   if(h.is_day[i] === 0) s -= 2;
   return Math.max(0, Math.min(10, Math.round(s)));
 }
+const feelsAt = (h, i) => h.apparent_temperature ? h.apparent_temperature[i] : h.temperature_2m[i];
+const clamp = x => Math.max(0, Math.min(10, Math.round(x)));
+function runScore(h, i){ let s = 10, t = feelsAt(h, i); s -= Math.min(6, (h.precipitation[i] || 0) * 5); s -= (h.precipitation_probability[i] || 0) / 40;
+  if(t < 4) s -= (4 - t) / 2; if(t > 20) s -= (t - 20) / 1.6; if((h.wind_speed_10m[i] || 0) > 25) s -= ((h.wind_speed_10m[i] || 0) - 25) / 6; if(h.uv_index[i] > 6) s -= 1.5; if(h.is_day[i] === 0) s -= 1; return clamp(s); }
+function walkScore(h, i){ let s = 10, t = feelsAt(h, i); s -= Math.min(6, (h.precipitation[i] || 0) * 6); s -= (h.precipitation_probability[i] || 0) / 35;
+  if(t < 3) s -= (3 - t) / 2; if(t > 26) s -= (t - 26) / 2; if((h.wind_gusts_10m[i] || 0) > 50) s -= 3; if(h.is_day[i] === 0) s -= 2.5; return clamp(s); }
+function bbqScore(h, i){ let s = 10, t = feelsAt(h, i); s -= Math.min(8, (h.precipitation[i] || 0) * 10); s -= (h.precipitation_probability[i] || 0) / 20;
+  if(t < 20) s -= (20 - t) / 1.3; if(t > 30) s -= (t - 30) / 2; if((h.wind_speed_10m[i] || 0) > 20) s -= ((h.wind_speed_10m[i] || 0) - 20) / 5; s -= (h.cloud_cover ? h.cloud_cover[i] : 50) / 50; return clamp(s); }
+function laundryScore(h, i){ let s = 10; const w = [i, i + 1, i + 2, i + 3].filter(x => x < h.time.length);
+  s -= Math.min(10, w.reduce((a, x) => a + (h.precipitation[x] || 0), 0) * 10); s -= Math.max(...w.map(x => h.precipitation_probability[x] || 0)) / 15;
+  const rh = h.relative_humidity_2m ? h.relative_humidity_2m[i] : 80; if(rh > 65) s -= (rh - 65) / 6; if(h.temperature_2m[i] < 8) s -= (8 - h.temperature_2m[i]) / 2;
+  const ws = h.wind_speed_10m[i] || 0; if(ws < 6) s -= 1.5; if(h.is_day[i] === 0) s -= 4; return clamp(s); }
+function carScore(h, i){ const w = []; for(let x = i; x < i + 36 && x < h.time.length; x++) w.push(x);
+  return clamp(10 - Math.min(10, w.reduce((a, x) => a + (h.precipitation[x] || 0), 0) * 3) - Math.max(...w.map(x => h.precipitation_probability[x] || 0)) / 25 - (h.temperature_2m[i] < 2 ? 4 : 0)); }
+function starScore(h, i){ if(h.is_day[i] !== 0) return 0; let s = 10 - (h.cloud_cover ? h.cloud_cover[i] : 100) / 9; s -= Math.min(5, (h.precipitation[i] || 0) * 10); if(h.visibility[i] < 10000) s -= 2; return clamp(s); }
+
+/* ---------- grafieken (48 uur en dagdetail) ---------- */
+const chartTabs = {};
+const TABS = [["temp", "Temperatuur"], ["rain", "Neerslag"], ["wind", "Wind"], ["uv", "UV"], ["hum", "Vocht"], ["cloud", "Bewolking"]];
+function drawChartBox(box){
+  const h = lastData.fc.hourly, i0 = +box.dataset.start, n = +box.dataset.count, tab = chartTabs[box.dataset.chart] || "temp";
+  box.querySelector(".tabs").innerHTML = TABS.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("");
+  const W = 340, H = 130, top = 14, bot = H - 18, idx = []; for(let i = i0; i < i0 + n && i < h.time.length; i++) idx.push(i);
+  const N = idx.length, X = k => 8 + k * (W - 16) / Math.max(1, N - 1);
+  const ser = {
+    temp:[{v:h.temperature_2m, c:"var(--neon)", u:"°", n:"temp"}, {v:h.apparent_temperature, c:"rgba(255,255,255,.55)", dash:1, u:"°", n:"voelt als"}],
+    rain:[{v:h.precipitation, bar:1, c:"var(--neon)", u:" mm", n:"neerslag", min:0, max:2}, {v:h.precipitation_probability, c:"rgba(255,255,255,.6)", dash:1, u:"%", n:"kans", min:0, max:100, own:1}],
+    wind:[{v:h.wind_speed_10m, c:"var(--neon)", u:" km/u", n:"wind", min:0}, {v:h.wind_gusts_10m, c:"rgba(255,255,255,.55)", dash:1, u:" km/u", n:"stoten", min:0}],
+    uv:[{v:h.uv_index, c:"#ffb547", area:1, u:"", n:"UV", min:0, max:8}],
+    hum:[{v:h.relative_humidity_2m, c:"var(--neon)", u:"%", n:"vocht", min:0, max:100}],
+    cloud:[{v:h.cloud_cover, c:"#cfd8e6", area:1, u:"%", n:"bewolking", min:0, max:100}]
+  }[tab].filter(sr => sr.v);
+  const base = ser.filter(sr => !sr.own), vals = base.flatMap(sr => idx.map(i => sr.v[i] ?? 0));
+  let lo = Math.min(...vals, base[0] && base[0].min != null ? base[0].min : Infinity), hi = Math.max(...vals, base[0] && base[0].max != null ? base[0].max : -Infinity);
+  if(hi - lo < 4) hi = lo + 4;
+  const Y = (v, sr) => { const a = sr.own ? sr.min : lo, b = sr.own ? sr.max : hi; return top + (1 - (v - a) / (b - a)) * (bot - top); };
+  let g = "";
+  idx.forEach((i, k) => { const t = h.time[i]; if(t.endsWith("T00:00")) g += `<line x1="${X(k)}" y1="${top - 6}" x2="${X(k)}" y2="${bot}" style="stroke:rgba(var(--nr),.35)"/><text x="${X(k) + 3}" y="${top - 2}">${dayName(t, 1).toUpperCase()}</text>`;
+    if(+t.slice(11, 13) % 6 === 0) g += `<text x="${X(k)}" y="${H - 4}" text-anchor="middle">${t.slice(11, 13)}</text>`; });
+  for(const sr of ser){
+    if(sr.bar){ const bw = Math.max(2, (W - 16) / N - 2); idx.forEach((i, k) => { const v = sr.v[i] || 0; if(v >= .05) g += `<rect x="${X(k) - bw / 2}" y="${Y(v, sr)}" width="${bw}" height="${bot - Y(v, sr)}" rx="1" style="fill:${sr.c}" opacity=".85"/>`; }); continue; }
+    const pts = idx.map((i, k) => `${X(k)},${Y(sr.v[i] ?? 0, sr)}`).join(" ");
+    if(sr.area) g += `<polygon points="${X(0)},${bot} ${pts} ${X(N - 1)},${bot}" style="fill:${sr.c}" opacity=".25"/>`;
+    g += `<polyline points="${pts}" fill="none" style="stroke:${sr.c}" stroke-width="${sr.dash ? 1.5 : 2.5}" ${sr.dash ? 'stroke-dasharray="4 4"' : ""} stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  if(tab === "wind") idx.forEach((i, k) => { if(k % 3 === 0 && h.wind_direction_10m) g += `<g transform="translate(${X(k)} ${bot - 8}) rotate(${(h.wind_direction_10m[i] + 180) % 360})"><path d="M0 -5 L3 3 L0 1.5 L-3 3Z" style="fill:rgba(255,255,255,.7)"/></g>`; });
+  const main = ser[0], mx = idx.reduce((a, i) => (main.v[i] ?? -1e9) > (main.v[a] ?? -1e9) ? i : a, idx[0]), kmx = idx.indexOf(mx);
+  if(!main.bar) g += `<text x="${X(kmx)}" y="${Y(main.v[mx], main) - 5}" text-anchor="middle" style="fill:#fff;font-size:9px">${R(main.v[mx])}${main.u.trim() === "°" ? "°" : ""}</text>`;
+  const el = box.querySelector(".chart");
+  el.innerHTML = `<div class="read">Sleep over de grafiek voor details</div><svg viewBox="0 0 ${W} ${H}">${g}<line class="cur" x1="-10" x2="-10" y1="${top}" y2="${bot}"/></svg>`;
+  const read = el.querySelector(".read"), cur = el.querySelector(".cur"), svg = el.querySelector("svg");
+  const scrub = e => { const r = svg.getBoundingClientRect(), k = Math.max(0, Math.min(N - 1, Math.round(((e.clientX - r.left) / r.width * W - 8) / ((W - 16) / Math.max(1, N - 1))))), i = idx[k];
+    cur.setAttribute("x1", X(k)); cur.setAttribute("x2", X(k));
+    read.textContent = `${dayName(h.time[i], h.time[i].slice(0, 10) === h.time[idx[0]].slice(0, 10) ? 1 : 1)} ${hm(h.time[i])} · ` + ser.map(sr => `${sr.n} ${sr.v[i] == null ? "–" : (sr.u === " mm" ? sr.v[i].toFixed(1).replace(".", ",") : R(sr.v[i]))}${sr.u}`).join(" · "); };
+  svg.onpointerdown = scrub; svg.onpointermove = e => { if(e.pointerType !== "mouse" || e.buttons) scrub(e); };
+}
+
+/* ---------- dagdetail ---------- */
+function openDay(i){
+  const {fc} = lastData, h = fc.hourly, dy = fc.daily, date = dy.time[i]; if(!date) return;
+  const i0 = h.time.findIndex(t => t.startsWith(date)); if(i0 < 0) return;
+  const ix = []; for(let k = i0; k < i0 + 24 && k < h.time.length; k++) ix.push(k);
+  const per = [["'s nachts", 0], ["'s ochtends", 6], ["'s middags", 12], ["'s avonds", 18]].map(([n, a]) => {
+    const w = ix.slice(a, a + 6); if(!w.length) return ""; const mm = w.reduce((s, k) => s + (h.precipitation[k] || 0), 0), pr = Math.max(...w.map(k => h.precipitation_probability[k] || 0));
+    return `${n} ${mm >= .3 ? "regen (" + mm.toFixed(1).replace(".", ",") + " mm)" : pr >= 50 ? "kans op een bui" : wmo(h.weather_code[w[3] || w[0]])[0].toLowerCase()}`; }).filter(Boolean);
+  const title = dateOf(date).toLocaleDateString("nl-NL", {weekday:"long", day:"numeric", month:"long"});
+  const gust = dy.wind_gusts_10m_max ? R(dy.wind_gusts_10m_max[i]) : null, dl = dy.daylight_duration ? dy.daylight_duration[i] : null;
+  $("dayBody").innerHTML = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">${icon(dy.weather_code[i], 1, 56)}<div><div style="font-size:18px;font-weight:600;text-transform:capitalize">${title}</div><div style="color:var(--muted)">${wmo(dy.weather_code[i])[0]} · ${R(dy.temperature_2m_min[i])}° / ${R(dy.temperature_2m_max[i])}°</div></div></div>
+    <div class="dd-sum">${esc(per.join(", ").replace(/^./, x => x.toUpperCase()))}.</div>
+    <div data-chart="day" data-start="${i0}" data-count="24"><div class="tabs"></div><div class="chart"></div></div>
+    <div class="dd-grid"><div><span>Neerslag</span><b>${(dy.precipitation_sum[i] || 0).toFixed(1).replace(".", ",")} mm</b></div><div><span>Kans</span><b>${dy.precipitation_probability_max[i] ?? 0}%</b></div><div><span>Regenuren</span><b>${dy.precipitation_hours ? R(dy.precipitation_hours[i]) : "–"}</b></div>
+    <div><span>Wind</span><b>${dirName(dy.wind_direction_10m_dominant[i])} ${wind(dy.wind_speed_10m_max[i])}</b></div><div><span>Stoten</span><b>${gust != null ? gust + " km/u" : "–"}</b></div><div><span>UV max</span><b>${R(dy.uv_index_max[i] || 0)}</b></div>
+    <div><span>Zon op</span><b>${hm(dy.sunrise[i])}</b></div><div><span>Zon onder</span><b>${hm(dy.sunset[i])}</b></div><div><span>Daglicht</span><b>${dl ? Math.floor(dl / 3600) + "u" + pad(R(dl % 3600 / 60)) : "–"}</b></div></div>`;
+  sheet("daySheet", true); drawChartBox($("dayBody").querySelector("[data-chart]"));
+}
+
 function advice(c, h, hi, dy, spans){
   const out = [], feels = c.apparent_temperature, next3 = [hi, hi + 1, hi + 2].filter(i => i < h.time.length);
   const prob = Math.max(...next3.map(i => h.precipitation_probability[i] || 0));
@@ -200,13 +285,18 @@ function render(d, stale){
   $("dots").innerHTML = places().length > 1 ? places().map((p, i) => `<i class="${i === placeIndex() ? "on" : ""}"></i>`).join("") : "";
   FX.count($("temp"), R(c.temperature_2m));
   FX.decode($("cond"), wmo(c.weather_code)[0]);
+  $("hicon").innerHTML = icon(c.weather_code, c.is_day, 30);
+  if(d.yd && d.yd.temperature_2m_max && d.yd.temperature_2m_max.length > 1){
+    const df = R(dy.temperature_2m_max[0] - d.yd.temperature_2m_max[0]), dl = R((d.yd.daylight_duration[1] - d.yd.daylight_duration[0]) / 60);
+    $("cmp").textContent = (df === 0 ? "Vandaag even warm als gisteren" : `Vandaag ${Math.abs(df)}° ${df > 0 ? "warmer" : "kouder"} dan gisteren`) + (dl ? ` · ${dl > 0 ? "+" : "−"}${Math.abs(dl)} min daglicht` : "");
+  } else $("cmp").textContent = "";
   $("hilo").textContent = `H:${R(dy.temperature_2m_max[0])}°  L:${R(dy.temperature_2m_min[0])}°  ·  voelt als ${R(c.apparent_temperature)}°`;
   const t = new Date(d.at);
   $("updated").textContent = (stale ? "Offline · laatst bijgewerkt " : "Bijgewerkt ") + pad(t.getHours()) + ":" + pad(t.getMinutes());
   $("updated").classList.toggle("off", !!stale);
   FX.drawSolar($("solar"), {now:c.time, rise:dy.sunrise[0], set:dy.sunset[0], rise2:dy.sunrise[1]});
   const rp = rainPoints(d), spans = rainSpans(rp.pts), hrs = R(rp.pts.length * rp.step / 60);
-  FX.type($("now"), rainText(spans, hrs));
+  FX.type($("now"), rainText(spans, hrs)); FX.nowcast(rp.pts, rp.step);
   $("chips").innerHTML = advice(c, h, hi, dy, spans).map(a => `<span class="chip">${a}</span>`).join("");
 
   // waarschuwingen
@@ -227,12 +317,84 @@ function render(d, stale){
   radar.classList.toggle("hidden", S.hidden.includes("radar"));
   if(!radar.isConnected) $("park").appendChild(radar);
   FX.cards(box);
+  box.querySelectorAll("[data-chart]").forEach(drawChartBox);
   wireRain(rp, spans);
   const hb = $("hours"); if(hb){ hb.scrollLeft = 0; requestAnimationFrame(() => FX.coverflow(hb)); hb.addEventListener("scroll", () => FX.coverflow(hb), {passive:true}); }
   if(!S.hidden.includes("radar")) initRadar(place.lat, place.lon);
 }
 
 const CARD = {
+  parts(d, c, h, dy, hi){
+    const P = [["Nacht", 0], ["Ochtend", 6], ["Middag", 12], ["Avond", 18]];
+    const curHour = +c.time.slice(11, 13), startP = Math.floor(curHour / 6), today = c.time.slice(0, 10);
+    const cells = [], words = [];
+    for(let k = 0; k < 4; k++){
+      const pi = (startP + k) % 4, dayOff = Math.floor((startP + k) / 4), date = dy.time[dayOff]; if(!date) break;
+      const i0 = h.time.findIndex(t => t === `${date}T${pad(P[pi][1])}:00`); if(i0 < 0) continue;
+      const ix = []; for(let i = i0; i < i0 + 6 && i < h.time.length; i++) if(dayOff > 0 || k > 0 || i >= hi) ix.push(i);
+      if(!ix.length) continue;
+      const T = ix.map(i => h.temperature_2m[i]), mm = ix.reduce((a, i) => a + (h.precipitation[i] || 0), 0), pr = Math.max(...ix.map(i => h.precipitation_probability[i] || 0));
+      const codes = ix.map(i => h.weather_code[i]), code = codes.reduce((a, b) => (b >= 51 && a < 51) || (b > a && b >= 51) ? b : a, codes[Math.floor(codes.length / 2)]);
+      const mid = ix[Math.floor(ix.length / 2)], name = (dayOff && date !== today ? (pi === 0 ? "Nacht" : P[pi][0]) : P[pi][0]);
+      const lbl = (dayOff ? (pi === 0 && dayOff === 1 ? "vannacht" : "morgen" + P[pi][0].toLowerCase()) : ({Nacht:"vannacht", Ochtend:"vanochtend", Middag:"vanmiddag", Avond:"vanavond"})[P[pi][0]]);
+      cells.push(`<div class="part"><div class="n">${dayOff && pi !== 0 ? "Morgen<br>" : ""}${name}</div>${icon(code, h.is_day[mid], 36)}<div class="t">${R(Math.min(...T))}°/${R(Math.max(...T))}°</div><div class="r">${pr >= 20 ? pr + "%" : ""}${mm >= .2 ? " · " + mm.toFixed(1).replace(".", ",") + "mm" : ""}</div></div>`);
+      words.push(`${lbl} ${mm >= .3 ? (mm >= 4 ? "flinke regen" : "regen") + ` (${mm.toFixed(1).replace(".", ",")} mm)` : pr >= 50 ? "kans op een bui" : wmo(code)[0].toLowerCase()}`);
+    }
+    if(!cells.length) return "";
+    const sent = words.map((w, i) => i === 0 ? w.replace(/^./, x => x.toUpperCase()) : w).join(", ") + ".";
+    return `<section class="card" id="c-parts">${H2('<path d="M12 3v2M5.6 5.6l1.4 1.4M3 12h2M19 12h2M17 7l1.4-1.4M8 16a4 4 0 1 1 8 0"/><path d="M3 20h18"/>', "Dagdelen")}<div class="summary">${esc(sent)}</div><div class="parts">${cells.join("")}</div></section>`;
+  },
+  charts(d, c, h, dy, hi){
+    return `<section class="card" id="c-charts" data-chart="main" data-start="${hi}" data-count="48">${H2('<path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/>', "Grafieken 48 uur")}<div class="tabs"></div><div class="chart"></div></section>`;
+  },
+  acts(d, c, h, dy, hi){
+    const idx = []; for(let i = hi; i < hi + 16 && i < h.time.length; i++) idx.push(i);
+    const A = [["🚲", "Fietsen", i => bikeScore(h, i)], ["🏃", "Hardlopen", i => runScore(h, i)], ["🥾", "Wandelen", i => walkScore(h, i)],
+      ["🍖", "Terras / BBQ", i => bbqScore(h, i)], ["👕", "Was buiten drogen", i => laundryScore(h, i)], ["🚗", "Auto wassen", i => carScore(h, i)], ["🔭", "Sterren kijken", i => starScore(h, i)]];
+    const col = s => `hsl(${s * 12},85%,55%)`;
+    const rows = A.map(([e, n, f]) => {
+      const sc = idx.map(f); let best = -1, bv = -1;
+      for(let k = 0; k < sc.length - 1; k++){ const hr = +h.time[idx[k]].slice(11, 13); if(n !== "Sterren kijken" && (hr < 6 || hr > 21)) continue; const v = (sc[k] + sc[k + 1]) / 2; if(v > bv){ bv = v; best = k; } }
+      const now = sc[0], tip = best < 0 ? "" : bv >= 6 ? `beste ${hm(h.time[idx[best]])}–${hm(h.time[idx[best] + 2] || h.time[idx[best] + 1])}` : "geen goed moment";
+      return `<div class="act"><div class="e">${e}</div><div class="n">${n}<small>${tip}${tip && bv >= 6 ? ` (${R(bv)}/10)` : ""}</small></div><div class="s" style="color:${col(now)}">${now}<small style="font-size:10px;color:var(--muted)">/10</small></div><div class="bar"><i style="width:${now * 10}%;background:${col(now)}"></i></div></div>`;
+    }).join("");
+    return `<section class="card" id="c-acts">${H2('<circle cx="12" cy="5" r="2"/><path d="M10 22l2-7 3 3v6M6 12l3-3 4 1 3 3 3 1"/>', "Activiteiten")}<div class="note" style="margin:0 0 6px;padding:0">Score nu (0–10) en het beste moment de komende uren.</div>${rows}</section>`;
+  },
+  pollen(d, c, h, dy){
+    const aq = d.aq; if(!aq) return "";
+    const N = {grass_pollen:"Gras", birch_pollen:"Berk", alder_pollen:"Els", mugwort_pollen:"Bijvoet", ragweed_pollen:"Ambrosia"};
+    const lvl = v => v < 10 ? ["laag", "#3ec74a"] : v < 50 ? ["matig", "#e6d83a"] : v < 150 ? ["hoog", "#f39b2b"] : ["zeer hoog", "#e5413a"];
+    const dmax = (k, off) => { const ht = aq.hourly; if(!ht || !ht[k]) return null; const day = dy.time[off]; let m = null; ht.time.forEach((t, i) => { if(t.startsWith(day) && ht[k][i] != null) m = Math.max(m || 0, ht[k][i]); }); return m; };
+    const rows = POLLEN.map(k => { const v = aq[k] ?? dmax(k, 0); if(v == null) return ""; const [t, col] = lvl(v), tm = dmax(k, 1);
+      return `<div class="pol"><div class="n">${N[k]}</div><div class="b"><i style="width:${Math.max(3, Math.min(100, v / 150 * 100))}%;background:${col}"></i></div><div class="v">${t}${tm != null ? ` <small>· morgen ${lvl(tm)[0]}</small>` : ""}</div></div>`; }).join("");
+    const aqi = aq.european_aqi;
+    return `<section class="card" id="c-pollen">${H2('<path d="M12 22V12M12 12C12 7 8 4 4 4c0 5 3 8 8 8zM12 12c0-5 4-8 8-8 0 5-3 8-8 8z"/>', "Pollen & luchtkwaliteit")}${rows || '<div class="note">Geen pollendata voor deze plek.</div>'}
+      ${aqi != null ? `<div class="aqrow"><span>Lucht: <b>${aqTxt(aqi)}</b> (${R(aqi)})</span><span>PM2,5 ${R(aq.pm2_5 || 0)}</span><span>PM10 ${R(aq.pm10 || 0)}</span><span>O₃ ${R(aq.ozone || 0)}</span><span>NO₂ ${R(aq.nitrogen_dioxide || 0)}</span></div>` : ""}</section>`;
+  },
+  astro(d, c, h, dy){
+    const p = d.place, now = new Date(), st = sunTimes(now, p.lat, p.lon), f = x => x && !isNaN(x) ? pad(x.getHours()) + ":" + pad(x.getMinutes()) : "–";
+    const mi = moonIllumination(now), mt = moonTimes(now, p.lat, p.lon), full = nextPhase(now, .5), dlen = dy.daylight_duration ? dy.daylight_duration[0] : null;
+    const ddiff = d.yd && d.yd.daylight_duration ? R(d.yd.daylight_duration[1] - d.yd.daylight_duration[0]) : null;
+    return `<section class="card" id="c-astro">${H2('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>', "Zon & maan")}
+      <div class="astro"><div><div class="k">Zonsopkomst</div><div class="v">${hm(dy.sunrise[0])}</div><div class="k">Gouden uur ochtend</div><div class="v">${hm(dy.sunrise[0])}–${f(st.goldenEndMorning)}</div><div class="k">Blauw uur ochtend</div><div class="v">${f(st.blueStartMorning)}–${f(st.blueEndMorning)}</div></div>
+      <div><div class="k">Zonsondergang</div><div class="v">${hm(dy.sunset[0])}</div><div class="k">Gouden uur avond</div><div class="v">${f(st.goldenStartEvening)}–${hm(dy.sunset[0])}</div><div class="k">Blauw uur avond</div><div class="v">${f(st.blueStartEvening)}–${f(st.blueEndEvening)}</div></div></div>
+      ${dlen ? `<div class="note" style="padding-top:4px">Daglicht ${Math.floor(dlen / 3600)}u ${pad(R(dlen % 3600 / 60))}m${ddiff != null ? ` · ${ddiff >= 0 ? "+" : "−"}${Math.floor(Math.abs(ddiff) / 60)}m ${pad(Math.abs(ddiff) % 60)}s t.o.v. gisteren` : ""} · zon het hoogst om ${f(st.noon)}</div>` : ""}
+      <div class="moon">${moonIcon(mi.phase, 52)}<div><div style="font-size:15px;font-weight:600">${phaseName(mi.phase)} · ${R(mi.fraction * 100)}%</div><div class="note" style="padding:2px 0 0">Maan op ${f(mt.rise)} · onder ${f(mt.set)}${full ? `<br>Volle maan ${full.toLocaleDateString("nl-NL", {weekday:"long", day:"numeric", month:"long"})}` : ""}</div></div></div></section>`;
+  },
+  models(d, c, h, dy){
+    const m = d.mod && d.mod.daily; if(!m) return "";
+    const days = m.time.slice(0, 5), have = MODELS.filter(([k]) => m[`temperature_2m_max_${k}`] && m[`temperature_2m_max_${k}`].some(v => v != null));
+    if(have.length < 2) return "";
+    const rows = have.map(([k, n]) => `<tr><td>${n}</td>${days.map((t, i) => { const v = m[`temperature_2m_max_${k}`][i], r = m[`precipitation_sum_${k}`][i]; return `<td>${v == null ? "–" : R(v) + "°"}<small>${r != null && r >= .2 ? r.toFixed(1).replace(".", ",") : ""}</small></td>`; }).join("")}</tr>`).join("");
+    const spreads = days.map((t, i) => { const v = have.map(([k]) => m[`temperature_2m_max_${k}`][i]).filter(x => x != null), r = have.map(([k]) => m[`precipitation_sum_${k}`][i]).filter(x => x != null);
+      return Math.max(Math.max(...v) - Math.min(...v), (Math.max(...r) - Math.min(...r)) / 2); });
+    const lab = x => x < 2 ? ["zeker", "#3ec74a"] : x < 4 ? ["redelijk", "#e6d83a"] : ["onzeker", "#f39b2b"];
+    const firstUnsure = spreads.findIndex(x => x >= 4);
+    const txt = firstUnsure < 0 ? "De modellen zijn het de komende dagen goed met elkaar eens: een betrouwbare verwachting." : firstUnsure <= 1 ? "De modellen verschillen al flink voor morgen: de verwachting kan nog veranderen." : `Tot en met ${dayName(days[firstUnsure - 1], firstUnsure - 1).toLowerCase()} zijn de modellen het eens; daarna wordt het onzeker.`;
+    return `<section class="card" id="c-models">${H2('<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>', "Weermodellen vergelijken")}<div class="note" style="margin:0 0 8px;padding:0">${txt}</div>
+      <table class="mtab"><tr><th></th>${days.map((t, i) => `<th>${dayName(t, i).slice(0, 3)}</th>`).join("")}</tr>${rows}</table>
+      <div class="spread">${spreads.map(x => `<div><i style="background:${lab(x)[1]}"></i>${lab(x)[0]}</div>`).join("")}</div><div class="src">Max. temperatuur en neerslag (mm) per weermodel</div></section>`;
+  },
   rain(d, c, h, dy, hi, rp, spans){
     const {pts, step, src} = rp, n = pts.length; if(!n) return "";
     const pos = i => (i / n * 100).toFixed(2) + "%", max = Math.max(2, ...pts.map(p => p.mm)), every = Math.max(1, R(30 / step));
@@ -262,47 +424,12 @@ const CARD = {
     }
     return `<section class="card" id="c-hours">${H2('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', "Per uur")}<div class="summary">${esc(s)}</div><div class="hours" id="hours">${html}</div></section>`;
   },
-  curve(d, c, h, dy, hi){
-    const T = h.temperature_2m.slice(hi, hi + 25), P = h.precipitation.slice(hi, hi + 25), n = T.length; if(n < 3) return "";
-    const lo = Math.min(...T), top = Math.max(...T), span = Math.max(3, top - lo), W = 320, Hh = 100, y0 = 16;
-    const X = i => 6 + i * (W - 12) / (n - 1), Y = v => y0 + (1 - (v - lo) / span) * (Hh - y0 - 10);
-    let p = `M${X(0)},${Y(T[0])}`;
-    for(let i = 0; i < n - 1; i++){ const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 2);
-      p += ` C${X(i) + (X(i + 1) - X(a)) / 6},${Y(T[i]) + (Y(T[i + 1]) - Y(T[a])) / 6} ${X(i + 1) - (X(b) - X(i)) / 6},${Y(T[i + 1]) - (Y(T[b]) - Y(T[i])) / 6} ${X(i + 1)},${Y(T[i + 1])}`; }
-    const iMax = T.indexOf(top), iMin = T.indexOf(lo);
-    let labs = "", rain = "";
-    for(let i = 0; i < n; i += 6) labs += `<text x="${X(i)}" y="${Hh + 14}" text-anchor="middle">${i ? h.time[hi + i].slice(11, 13) + ":00" : "NU"}</text><line x1="${X(i)}" y1="${y0}" x2="${X(i)}" y2="${Hh}" style="stroke:rgba(var(--nr),.12)"/>`;
-    P.forEach((v, i) => { if(v >= .1) rain += `<rect x="${X(i) - 3}" y="${Hh - Math.min(30, v * 12)}" width="6" height="${Math.min(30, v * 12)}" rx="1" style="fill:rgba(var(--nr2),.45)"/>`; });
-    return `<section class="card curve" id="c-curve">${H2('<path d="M3 17l5-6 4 3 8-9"/>', "Temperatuurcurve 24 uur")}
-      <svg viewBox="0 0 ${W} ${Hh + 18}"><defs><linearGradient id="tca" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:rgba(var(--nr),.35)"/><stop offset="1" style="stop-color:rgba(var(--nr),0)"/></linearGradient>
-      <filter id="tcg" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-      ${labs}${rain}<path class="ar" d="${p} L${X(n - 1)},${Hh} L${X(0)},${Hh} Z" fill="url(#tca)"/>
-      <path id="tcp" class="ln" pathLength="1" d="${p}" style="stroke:var(--neon)" filter="url(#tcg)"/>
-      <circle r="4" fill="#fff" filter="url(#tcg)"><animateMotion dur="6s" repeatCount="indefinite" begin="2s"><mpath href="#tcp"/></animateMotion></circle>
-      <circle cx="${X(iMax)}" cy="${Y(top)}" r="3" style="fill:var(--neon)"/><text class="tv" x="${X(iMax)}" y="${Y(top) - 6}" text-anchor="middle">${R(top)}°</text>
-      <circle cx="${X(iMin)}" cy="${Y(lo)}" r="3" style="fill:var(--neon2)"/><text class="tv" x="${X(iMin)}" y="${Y(lo) + 13}" text-anchor="middle">${R(lo)}°</text></svg></section>`;
-  },
-  bike(d, c, h, dy, hi){
-    const idx = []; for(let i = hi; i < hi + 14 && i < h.time.length; i++) idx.push(i);
-    const sc = idx.map(i => bikeScore(h, i)); let best = 0, bestV = -1;
-    for(let k = 0; k < sc.length - 1; k++){ const hr = +h.time[idx[k]].slice(11, 13); if(hr < 6 || hr > 22) continue; const v = (sc[k] + sc[k + 1]) / 2 - (h.is_day[idx[k]] === 0 ? 1 : 0); if(v > bestV){ bestV = v; best = k; } }
-    if(bestV < 0) return "";
-    const col = s => `hsl(${s * 12},85%,55%)`, now = sc[0];
-    const txt = bestV >= 7 ? `Beste fietsmoment: ${hm(h.time[idx[best]])}–${hm(h.time[idx[best] + 2] || h.time[idx[best] + 1])} (${R((sc[best] + sc[best + 1]) / 2)}/10).`
-      : bestV >= 4 ? `Matig fietsweer. Het minst slecht: ${hm(h.time[idx[best]])}–${hm(h.time[idx[best] + 2] || h.time[idx[best] + 1])}.` : "De komende uren geen goed fietsweer.";
-    return `<section class="card" id="c-bike">${H2('<circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l4-8h5l4 8M9.5 9L8 6h3M14.5 9l-3 8"/>', "Fietsweer")}
-      <div style="display:flex;align-items:baseline;gap:10px"><div class="score">${now}<span style="font-size:14px;color:var(--muted)">/10</span></div><div style="font-size:14px">nu · ${now >= 8 ? "prima" : now >= 6 ? "redelijk" : now >= 4 ? "matig" : "slecht"}</div></div>
-      <div class="note" style="margin:6px 0 4px;padding:0">${esc(txt)}</div>
-      <div class="bike">${sc.map((s, k) => `<div class="${k === best || k === best + 1 ? "best" : ""}" style="height:${10 + s * 9}%;background:${col(s)};box-shadow:0 0 8px ${col(s)}"></div>`).join("")}</div>
-      <div class="bikeax">${idx.map((i, k) => `<span>${k % 2 ? "" : (k ? h.time[i].slice(11, 13) : "nu")}</span>`).join("")}</div></section>`;
-  },
   days(d, c, h, dy){
     const lo = Math.min(...dy.temperature_2m_min), top = Math.max(...dy.temperature_2m_max), span = Math.max(1, top - lo);
     return `<section class="card" id="c-days">${H2('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>', "10-daagse verwachting")}` + dy.time.map((t, i) => {
       const a = (dy.temperature_2m_min[i] - lo) / span * 100, b = (dy.temperature_2m_max[i] - lo) / span * 100, p = dy.precipitation_probability_max[i];
       const dot = i === 0 ? `<b style="left:${Math.min(100, Math.max(0, (c.temperature_2m - lo) / span * 100))}%"></b>` : "";
-      const det = `${wmo(dy.weather_code[i])[0]} · ${(dy.precipitation_sum[i] || 0).toFixed(1)} mm · wind ${dirName(dy.wind_direction_10m_dominant[i])} ${wind(dy.wind_speed_10m_max[i])} · UV ${R(dy.uv_index_max[i] || 0)} · zon ${hm(dy.sunrise[i])}–${hm(dy.sunset[i])}`;
-      return `<div class="day"><div class="d">${dayName(t, i)}</div><div class="ic">${icon(dy.weather_code[i], 1)}</div><div class="p">${p >= 20 ? R(p / 10) * 10 + "%" : ""}</div><div class="lo">${R(dy.temperature_2m_min[i])}°</div><div class="range"><i style="left:${a}%;width:${Math.max(4, b - a)}%;animation-delay:${i * 60}ms"></i>${dot}</div><div class="hi">${R(dy.temperature_2m_max[i])}°</div><div class="daydetail">${det}</div></div>`;
+      return `<div class="day" data-day="${i}"><div class="d">${dayName(t, i)}</div><div class="ic">${icon(dy.weather_code[i], 1)}</div><div class="p">${p >= 20 ? R(p / 10) * 10 + "%" : ""}</div><div class="lo">${R(dy.temperature_2m_min[i])}°</div><div class="range"><i style="left:${a}%;width:${Math.max(4, b - a)}%;animation-delay:${i * 60}ms"></i>${dot}</div><div class="hi">${R(dy.temperature_2m_max[i])}°</div></div>`;
     }).join("") + "</section>";
   },
   tiles(d, c, h, dy, hi){
@@ -345,7 +472,9 @@ function wireRain(rp, spans){
   chart.onpointerdown = show; chart.onpointermove = e => { if(e.pointerType !== "mouse" || e.buttons) show(e); };
 }
 document.addEventListener("click", e => {
-  const w = e.target.closest(".warn,.day"); if(w) w.classList.toggle("open");
+  const w = e.target.closest(".warn"); if(w) w.classList.toggle("open");
+  const dd = e.target.closest(".day[data-day]"); if(dd && lastData) openDay(+dd.dataset.day);
+  const tb = e.target.closest(".tabs button[data-tab]"); if(tb){ const box = tb.closest("[data-chart]"); chartTabs[box.dataset.chart] = tb.dataset.tab; drawChartBox(box); }
 });
 
 /* =========================================================
@@ -412,10 +541,20 @@ const sheet = (id, on) => { $(id).classList.toggle("open", on); if(on) SFX.swoos
 document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => { if(e.target === s) sheet(s.id, false); }));
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => sheet(b.dataset.close, false));
 
-function openPlaces(){ sheet("places", true); $("search").value = ""; $("results").innerHTML = ""; renderSaved(); }
+function openPlaces(){ sheet("places", true); $("search").value = ""; $("results").innerHTML = ""; renderSaved(); placeTemps(); }
 function renderSaved(){
   $("saved").innerHTML = `<button class="pitem" data-gps="1">${ICON('<path d="M21 3L3 10.5l7.5 3L13.5 21z" fill="currentColor"/>')}<span class="n"><div>Mijn locatie</div><small>Live via gps</small></span></button>` +
     saved.map((p, i) => `<div class="pitem" data-i="${i}"><span class="n"><div>${esc(p.name)}</div><small>${esc(p.region || "")}</small></span><button class="x" data-up="${i}" aria-label="Omhoog"${i ? "" : " disabled"}>▲</button><button class="x" data-del="${i}" aria-label="Verwijderen">✕</button></div>`).join("");
+}
+async function placeTemps(){
+  const list = [current && current.gps && current.lat != null ? current : null, ...saved];
+  const real = list.map((p, i) => [p, i]).filter(([p]) => p); if(!real.length) return;
+  try{
+    const j = await get(`https://api.open-meteo.com/v1/forecast?latitude=${real.map(([p]) => p.lat.toFixed(3)).join(",")}&longitude=${real.map(([p]) => p.lon.toFixed(3)).join(",")}&current=temperature_2m,weather_code,is_day&timezone=auto`, 8000);
+    const arr = Array.isArray(j) ? j : [j], items = $("saved").querySelectorAll(".pitem");
+    real.forEach(([, i], k) => { const c = arr[k] && arr[k].current, it = items[i]; if(!c || !it) return;
+      const t = document.createElement("span"); t.className = "tw"; t.innerHTML = `${icon(c.weather_code, c.is_day, 28)}${R(c.temperature_2m)}°`; it.querySelector(".n").after(t); });
+  }catch(e){}
 }
 $("saved").onclick = e => {
   const del = e.target.closest("[data-del]"), up = e.target.closest("[data-up]");
@@ -471,7 +610,9 @@ function goPlace(i){
 const sw = (key, on, label, sub) => `<div class="row"><div class="n">${label}${sub ? `<small>${sub}</small>` : ""}</div><button class="sw${on ? " on" : ""}" data-sw="${key}" aria-label="${label}"></button></div>`;
 function renderSettings(){
   const f = S.fx, ph = pushSupported();
-  let h = `<div class="label">Effecten</div>` +
+  let h = `<div class="label">Stijl</div><div class="row"><div class="n">Uitstraling<small>Rustig = leesbaar · Show = alle effecten</small></div><div class="seg"><button data-show="0" class="${S.fx.show ? "" : "on"}">Rustig</button><button data-show="1" class="${S.fx.show ? "on" : ""}">Show</button></div></div>
+    <div class="row"><div class="n">Kleur<small>Automatisch volgt de temperatuur</small></div></div><div class="seg" style="margin-top:6px">${[["auto", "Auto"], ["cyan", "Cyaan"], ["green", "Groen"], ["orange", "Oranje"], ["purple", "Paars"]].map(([k, l]) => `<button data-accent="${k}" class="${S.accent === k ? "on" : ""}" style="flex:1">${l}</button>`).join("")}</div>
+    <div class="label">Effecten</div>` +
     sw("fx.bg", f.bg, "Weer-animaties", "Regen, sneeuw, bliksem, sterren, raster") +
     sw("fx.touch", f.touch, "Aanraak-effecten", "Vonken, rimpels, kantelen, sonar, paraplu") +
     sw("fx.hud", f.hud, "HUD", "Ring, projectiestraal, scanlijnen, datastromen") +
@@ -485,6 +626,8 @@ function renderSettings(){
   if(ph){
     h += sw("push.on", S.push.on, "Meldingen aan", "Ook als de app dicht is") +
       (S.push.on ? sw("push.rain", S.push.rain, "Regen binnen ±15 minuten") + sw("push.warn", S.push.warn, "Weerwaarschuwingen (code geel/oranje/rood)") +
+      sw("push.storm", S.push.storm, "Onweer op komst") + sw("push.frost", S.push.frost, "Vorst of gladheid vannacht", "Melding om 20:00") +
+      sw("push.morning", S.push.morning, "Ochtendbericht", "Korte samenvatting van de dag") + (S.push.morning ? `<div class="row"><div class="n">Tijd ochtendbericht</div><input type="time" id="mt" value="${S.push.morningTime}"></div>` : "") +
       `<div class="row"><div class="n">Stil tussen</div><input type="time" id="qf" value="${S.push.quietFrom}"> – <input type="time" id="qt" value="${S.push.quietTo}"></div>` : "") +
       `<div class="ptext">Meldingen gaan over je laatst bekende locatie (of de gekozen plaats als je geen gps gebruikt).</div>`;
   }else h += `<div class="ptext">${pushHost ? "Je telefoon of browser ondersteunt hier geen meldingen. Installeer de app via ⋮ → App installeren en probeer het opnieuw." : "Meldingen werken in de nieuwe versie op weer-jasper.web.app."}</div>`;
@@ -493,11 +636,15 @@ function renderSettings(){
   $("settingsBody").innerHTML = h;
   $("inst").style.display = installEv ? "" : "none";
   $("inst").onclick = async () => { if(!installEv) return; installEv.prompt(); await installEv.userChoice; installEv = null; renderSettings(); };
+  const mt = $("mt"); if(mt) mt.onchange = () => { S.push.morningTime = mt.value; save(); syncPush(current || {}, true); };
   const qf = $("qf"), qt = $("qt");
   if(qf){ qf.onchange = () => { S.push.quietFrom = qf.value; save(); syncPush(current || {}, true); }; qt.onchange = () => { S.push.quietTo = qt.value; save(); syncPush(current || {}, true); }; }
 }
 $("settingsBody").addEventListener("click", async e => {
   const s = e.target.closest("[data-sw]"), c = e.target.closest("[data-card]"), m = e.target.closest("[data-mv]"), w = e.target.closest("[data-wind]");
+  const sh = e.target.closest("[data-show]"), ac = e.target.closest("[data-accent]");
+  if(sh){ S.fx.show = sh.dataset.show === "1"; save(); renderSettings(); if(lastData) render(lastData); return; }
+  if(ac){ S.accent = ac.dataset.accent; save(); renderSettings(); if(lastData) render(lastData); return; }
   if(s){
     const [a, b] = s.dataset.sw.split(".");
     if(s.dataset.sw === "push.on"){
@@ -518,6 +665,11 @@ let installEv = null;
 addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEv = e; });
 
 /* ---------- knoppen, vernieuwen, trekken ---------- */
+$("share").onclick = async () => {
+  if(!lastData) return; const c = lastData.fc.current, dy = lastData.fc.daily;
+  const text = `${lastData.place.name}: ${R(c.temperature_2m)}°, ${wmo(c.weather_code)[0].toLowerCase()} (${R(dy.temperature_2m_min[0])}–${R(dy.temperature_2m_max[0])}°). ${$("now").textContent}`;
+  try{ if(navigator.share) await navigator.share({title:"Weer", text, url:location.origin + "/"}); else { await navigator.clipboard.writeText(text + " " + location.origin + "/"); FX.toast("Gekopieerd", true); } }catch(e){}
+};
 $("btnPlaces").onclick = openPlaces;
 $("btnSettings").onclick = () => { renderSettings(); sheet("settings", true); };
 $("btnRefresh").onclick = () => { FX.warp(); load(); };

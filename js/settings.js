@@ -1,21 +1,26 @@
 // Instellingen: worden in de telefoon zelf bewaard (localStorage)
 const KEY = "weer.settings";
 export const CARDS = {
-  rain:  "Neerslag komende 2 uur",
-  hours: "Per uur",
-  curve: "Temperatuurcurve",
-  bike:  "Fietsweer",
-  days:  "10-daagse verwachting",
-  radar: "Regenradar",
-  tiles: "Details (wind, UV, zon…)"
+  rain:   "Neerslag komende 2 uur",
+  parts:  "Dagdelen (vandaag & morgen)",
+  hours:  "Per uur",
+  charts: "Grafieken 48 uur",
+  days:   "10-daagse verwachting",
+  acts:   "Activiteiten (fietsen, hardlopen…)",
+  radar:  "Regenradar",
+  pollen: "Pollen & luchtkwaliteit",
+  astro:  "Zon & maan",
+  models: "Weermodellen vergelijken",
+  tiles:  "Details (wind, UV, vocht…)"
 };
 const DEF = {
-  fx: {bg:true, touch:true, boot:true, hud:true, cards:true},
+  fx: {show:false, bg:true, touch:true, boot:true, hud:true, cards:true},
+  accent: "auto",                    // auto (volgt temperatuur) | cyan | green | orange | purple
   sound: true,
   wind: "bft",                       // bft | kmh | ms
   order: Object.keys(CARDS),
   hidden: [],
-  push: {on:false, rain:true, warn:true, quietFrom:"23:00", quietTo:"07:00"}
+  push: {on:false, rain:true, warn:true, storm:true, frost:true, morning:true, morningTime:"07:00", quietFrom:"23:00", quietTo:"07:00"}
 };
 function load(){
   let s = {};
@@ -39,6 +44,6 @@ export function save(){
 }
 export function apply(){
   const c = document.documentElement.classList;
-  c.toggle("no-bg", !S.fx.bg); c.toggle("no-touch", !S.fx.touch); c.toggle("no-hud", !S.fx.hud); c.toggle("no-cards", !S.fx.cards);
+  c.toggle("calm", !S.fx.show); c.toggle("no-bg", !S.fx.bg); c.toggle("no-touch", !S.fx.touch); c.toggle("no-hud", !S.fx.hud); c.toggle("no-cards", !S.fx.cards);
 }
 export const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;

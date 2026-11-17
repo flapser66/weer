@@ -12,11 +12,13 @@ let NR = "56,243,255";
 /* ---------- kleur volgt temperatuur ---------- */
 const STOPS = [[-10,[200,90,80],[230,90,70]],[0,[190,100,62],[250,95,70]],[10,[184,100,61],[272,100,71]],[17,[160,100,58],[190,100,60]],[23,[45,100,60],[15,100,60]],[30,[350,100,62],[310,100,60]]];
 function hsl2rgb(h, s, l){ s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return [f(0), f(8), f(4)].map(x => Math.round(x * 255)); }
+const FIXED = {cyan:[[186,100,60],[200,100,72]], green:[[150,90,55],[165,90,70]], orange:[[30,100,58],[42,100,70]], purple:[[270,90,68],[285,90,78]]};
 function hue(t){
+  if(FIXED[S.accent]){ const [a, b] = FIXED[S.accent].map(x => hsl2rgb(...x)); NR = a.join(","); root.style.setProperty("--nr", NR); root.style.setProperty("--nr2", b.join(",")); return; }
   let i = 0; while(i < STOPS.length - 2 && t > STOPS[i + 1][0]) i++;
   const [t0, a0, b0] = STOPS[i], [t1, a1, b1] = STOPS[i + 1], k = Math.max(0, Math.min(1, (t - t0) / (t1 - t0)));
   const mix = (x, y) => { let dh = y[0] - x[0]; if(dh > 180) dh -= 360; if(dh < -180) dh += 360; return [(x[0] + dh * k + 360) % 360, x[1] + (y[1] - x[1]) * k, x[2] + (y[2] - x[2]) * k]; };
-  const n1 = hsl2rgb(...mix(a0, a1)), n2 = hsl2rgb(...mix(b0, b1));
+  const m1 = mix(a0, a1), n1 = hsl2rgb(...m1), n2 = S.fx.show ? hsl2rgb(...mix(b0, b1)) : hsl2rgb((m1[0] + 18) % 360, m1[1], Math.min(80, m1[2] + 14));
   NR = n1.join(","); root.style.setProperty("--nr", NR); root.style.setProperty("--nr2", n2.join(","));
 }
 
@@ -179,20 +181,36 @@ let OV;
    ========================================================= */
 function heroDeco(hero, temp, solar){
   let ticks = ""; for(let a = 0; a < 360; a += 6) ticks += `<line x1="115" y1="${a % 30 ? 6 : 0}" x2="115" y2="12" transform="rotate(${a} 115 115)"/>`;
-  const ring = document.createElement("div"); ring.className = "ring";
-  ring.innerHTML = `<svg viewBox="0 0 230 230"><defs><radialGradient id="rg"><stop offset="0" style="stop-color:rgba(var(--nr),.18)"/><stop offset="1" style="stop-color:rgba(var(--nr),0)"/></radialGradient></defs>
-    <g class="r3" style="stroke:rgba(var(--nr),.35)" stroke-width="1">${ticks}</g>
-    <circle class="r1" cx="115" cy="115" r="96" fill="none" style="stroke:rgba(var(--nr),.55)" stroke-width="1.5" stroke-dasharray="60 14 6 14"/>
-    <circle class="r2" cx="115" cy="115" r="84" fill="none" style="stroke:rgba(var(--nr2),.5)" stroke-width="3" stroke-dasharray="2 10"/>
-    <circle cx="115" cy="115" r="72" fill="url(#rg)"/></svg>`;
+  const ring = document.createElement("div"); ring.className = "ring"; ringEl = ring;
+  ring.innerHTML = `<svg viewBox="0 0 230 230"><defs><radialGradient id="rg"><stop offset="0" style="stop-color:rgba(var(--nr),.16)"/><stop offset="1" style="stop-color:rgba(var(--nr),0)"/></radialGradient></defs>
+    <g class="deco"><g class="r3" style="stroke:rgba(var(--nr),.35)" stroke-width="1">${ticks}</g>
+    <circle class="r2" cx="115" cy="115" r="108" fill="none" style="stroke:rgba(var(--nr2),.5)" stroke-width="2" stroke-dasharray="2 10"/></g>
+    <circle cx="115" cy="115" r="72" fill="url(#rg)"/><g class="nc"></g></svg>`;
   const beam = document.createElement("div"); beam.className = "beam";
   hero.prepend(beam); hero.prepend(ring);
   const place = () => {
-    ring.style.top = (temp.offsetTop + temp.offsetHeight / 2 - 115) + "px";
+    ring.style.top = (temp.offsetTop + temp.offsetHeight / 2 - 125) + "px";
     const top = temp.offsetTop + temp.offsetHeight * .55; beam.style.top = top + "px"; beam.style.height = Math.max(40, solar.offsetTop - top + 40) + "px";
   };
   new ResizeObserver(place).observe(hero); addEventListener("resize", place); place();
   return ring;
+}
+let ringEl = null;
+// Regenring: 2 uur neerslag als segmenten rond de temperatuur (beginnend bovenaan = nu)
+export function nowcast(pts, step){
+  if(!ringEl) return; const g = ringEl.querySelector(".nc"), n = pts.length; if(!n){ g.innerHTML = ""; return; }
+  const cx = 115, cy = 115, r0 = 78, max = Math.max(2, ...pts.map(p => p.mm)), gap = 1.2, seg = 360 / n;
+  const pt = (a, r) => [cx + r * Math.sin(a * Math.PI / 180), cy - r * Math.cos(a * Math.PI / 180)];
+  let h = "";
+  pts.forEach((p, i) => {
+    const a0 = i * seg + gap / 2, a1 = (i + 1) * seg - gap / 2, wet = p.mm >= .05, len = wet ? 6 + Math.sqrt(p.mm / max) * 14 : 2;
+    const [x0, y0] = pt(a0, r0), [x1, y1] = pt(a1, r0), [x2, y2] = pt(a1, r0 + len), [x3, y3] = pt(a0, r0 + len);
+    h += `<path d="M${x0} ${y0} A${r0} ${r0} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${r0 + len} ${r0 + len} 0 0 0 ${x3} ${y3}Z" style="fill:${wet ? "var(--neon)" : "rgba(255,255,255,.14)"}" ${wet ? 'filter="drop-shadow(0 0 3px rgba(var(--nr),.8))"' : ""}><title>${p.time}</title></path>`;
+  });
+  const lab = (i, txt) => { const [x, y] = pt(i * seg, r0 + 30); return `<text class="lab" x="${x}" y="${y + 3}" text-anchor="middle">${txt}</text>`; };
+  const q = Math.round(n / 4);
+  h += `<circle cx="${cx}" cy="${cy - r0 - 4}" r="3" fill="#fff"/>` + "" + lab(q, pts[q] ? pts[q].time : "") + lab(3 * q, pts[3 * q] ? pts[3 * q].time : "");
+  g.innerHTML = h;
 }
 export function drawSolar(el, x){
   const mins = s => { const [d, hm] = s.split("T"), [h, m] = hm.split(":"); return Date.parse(d + "T00:00Z") / 60000 + (+h) * 60 + (+m); };

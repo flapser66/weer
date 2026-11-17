@@ -16,7 +16,7 @@ async function subscription(create){
   }
   return sub;
 }
-const prefs = () => ({rain:S.push.rain, warn:S.push.warn, quietFrom:S.push.quietFrom, quietTo:S.push.quietTo});
+const prefs = () => ({rain:S.push.rain, warn:S.push.warn, storm:S.push.storm, frost:S.push.frost, morning:S.push.morning, morningTime:S.push.morningTime, quietFrom:S.push.quietFrom, quietTo:S.push.quietTo});
 
 export async function enablePush(place){
   if(!pushSupported()) throw new Error("Meldingen werken hier niet");

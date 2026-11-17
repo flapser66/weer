@@ -7,7 +7,7 @@
   --nr:56,243,255; --nr2:178,107,255;
   --neon:rgb(var(--nr)); --neon2:rgb(var(--nr2));
   --glass:rgba(10,18,32,.55); --hud:rgba(var(--nr),.35);
-  --text:#fff; --muted:rgba(255,255,255,.72); --faint:rgba(255,255,255,.45);
+  --text:#fff; --muted:rgba(255,255,255,.80); --faint:rgba(255,255,255,.55);
   --sk:0deg;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -303,3 +303,117 @@ html.turbo{animation:turbo 1.5s linear infinite}
 .no-cards .fxin,.no-cards .hour .ic,.no-cards .range i,.no-cards .rainchart .bar,.no-cards .temp{animation:none!important}
 .no-touch #trail{display:none!important}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important}#boot{display:none}}
+
+/* =========================================================
+   v3 – rustig-futuristisch + premium-onderdelen
+   ========================================================= */
+/* rustige modus: alleen wat informatie geeft blijft over */
+.calm #grid,.calm .scan,.calm .stream,.calm .beam,.calm .energy,.calm .shine,.calm .ring .deco{display:none!important}
+.calm .card::before,.calm .card::after{display:none}
+.calm .card{border-radius:20px;background:rgba(12,20,34,.72);border-color:rgba(var(--nr),.18);box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.calm .card h2{color:rgba(var(--nr),.95);letter-spacing:2px}
+.calm .temp{animation:none}
+.calm .iconbtn{border-color:rgba(var(--nr),.25);box-shadow:none}
+.summary{font-size:16px}
+.card h2 .hact{margin-left:auto;font-family:"Exo 2",sans-serif;letter-spacing:0;text-transform:none;font-size:12px;color:var(--muted)}
+
+/* regenring om de temperatuur */
+.ring{width:250px;height:250px;margin-left:-125px}
+.ring .nc path{transition:opacity .4s}
+.ring .lab{font-family:Orbitron,sans-serif;font-size:8px;fill:var(--muted)}
+.heroicon{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:2px}
+.heroicon .wi{width:30px;height:30px}
+.cmp{font-size:12px;color:var(--muted);margin-top:4px}
+.share{position:absolute;right:0;top:0;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;border:1px solid rgba(var(--nr),.25);background:rgba(12,20,34,.5)}
+.share svg{width:16px;height:16px;stroke:var(--neon)}
+
+/* geanimeerde iconen */
+.wi{overflow:visible;display:inline-block;vertical-align:middle}
+.wi-rays{transform-origin:32px 32px;animation:rot 14s linear infinite}
+.wi-sun circle{filter:drop-shadow(0 0 6px rgba(255,200,60,.7))}
+.wi-cloud{animation:drift 6s ease-in-out infinite}
+.wi-cloud2{animation:drift 7s ease-in-out infinite reverse}
+@keyframes drift{50%{transform:translateX(3px)}}
+.wi-drop{animation:drop 1s linear infinite}
+@keyframes drop{0%{opacity:0;transform:translateY(-6px)}30%{opacity:1}100%{opacity:0;transform:translateY(6px)}}
+.wi-flake{animation:flake 2s linear infinite}
+@keyframes flake{0%{opacity:0;transform:translateY(-6px)}30%{opacity:1}100%{opacity:0;transform:translate(3px,8px)}}
+.wi-bolt{animation:bolt 2.4s steps(1) infinite}
+@keyframes bolt{0%,60%,100%{opacity:1}62%,70%{opacity:.1}}
+.wi-fog line{animation:fogm 4s ease-in-out infinite}
+@keyframes fogm{50%{transform:translateX(5px);opacity:.6}}
+.wi-star{animation:twinkle 2.5s ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.2}}
+.no-cards .wi *{animation:none!important}
+.hour .ic{height:34px;line-height:34px}
+
+/* grafieken met tabbladen */
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:0 0 auto;padding:6px 12px;border-radius:16px;font-size:12px;font-weight:600;border:1px solid rgba(var(--nr),.3);color:var(--muted)}
+.tabs button.on{background:var(--neon);color:#02040a;border-color:var(--neon)}
+.chart{position:relative;touch-action:pan-y}
+.chart svg{width:100%;display:block;overflow:visible}
+.chart text{font-family:Orbitron,sans-serif;font-size:8px;fill:var(--muted)}
+.chart .read{font-family:Orbitron,sans-serif;font-size:11px;color:var(--neon);height:16px;margin-bottom:4px}
+.chart .cur{stroke:#fff;stroke-width:1;stroke-dasharray:2 3}
+
+/* dagdelen */
+.parts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.part{padding:8px 2px;border-radius:12px;background:rgba(var(--nr),.06)}
+.part .n{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.part .wi{width:36px;height:36px;margin:4px 0}
+.part .t{font-family:Orbitron,sans-serif;font-size:13px}
+.part .r{font-size:11px;color:var(--neon);min-height:14px}
+.daylabel{font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:2px;color:var(--muted);margin:10px 0 6px}
+
+/* activiteiten */
+.act{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid rgba(var(--nr),.1)}
+.act:first-of-type{border-top:0}
+.act .e{font-size:20px;text-align:center}
+.act .n{font-size:15px}
+.act .n small{display:block;font-size:12px;color:var(--muted)}
+.act .s{font-family:Orbitron,sans-serif;font-size:16px;min-width:46px;text-align:right}
+.act .bar{grid-column:2/4;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:-4px}
+.act .bar i{display:block;height:100%;border-radius:2px}
+
+/* pollen */
+.pol{display:grid;grid-template-columns:90px 1fr 54px;gap:8px;align-items:center;padding:6px 0}
+.pol .n{font-size:14px}
+.pol .b{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+.pol .b i{display:block;height:100%;border-radius:4px}
+.pol .v{font-size:12px;text-align:right;color:var(--muted)}
+.aqrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.aqrow span{font-size:12px;padding:4px 8px;border-radius:10px;background:rgba(var(--nr),.08)}
+
+/* zon & maan */
+.astro{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.astro .k{font-size:12px;color:var(--muted)}
+.astro .v{font-family:Orbitron,sans-serif;font-size:15px;margin-bottom:6px}
+.moon{display:flex;gap:12px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(var(--nr),.12)}
+
+/* modellen */
+.mtab{width:100%;border-collapse:collapse;font-size:12px}
+.mtab th{font-weight:600;color:var(--muted);font-size:11px;padding:4px 2px;text-align:center}
+.mtab th:first-child,.mtab td:first-child{text-align:left}
+.mtab td{padding:6px 2px;text-align:center;border-top:1px solid rgba(var(--nr),.08);font-family:Orbitron,sans-serif;font-size:11px}
+.mtab td:first-child{font-family:"Exo 2",sans-serif;font-size:12px}
+.mtab td small{display:block;color:var(--neon);font-size:9px}
+.spread{display:flex;gap:4px;margin-top:10px}
+.spread div{flex:1;text-align:center;font-size:10px;color:var(--muted)}
+.spread i{display:block;height:6px;border-radius:3px;margin-bottom:4px}
+
+/* dagdetail */
+.dd-sum{font-size:15px;line-height:1.4;margin-bottom:10px}
+.dd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.dd-grid div{padding:8px;border-radius:12px;background:rgba(var(--nr),.06);text-align:center}
+.dd-grid b{display:block;font-family:Orbitron,sans-serif;font-size:14px;margin-top:2px}
+.dd-grid span{font-size:11px;color:var(--muted)}
+
+/* plaatsenlijst */
+.pitem .tw{display:flex;align-items:center;gap:4px;font-family:Orbitron,sans-serif;font-size:16px}
+.pitem .tw .wi{width:28px;height:28px}
+
+.hero .temp{margin:40px 0 40px 22px}
+.pol{grid-template-columns:70px 1fr 112px}
+.pol .v small{font-size:11px;opacity:.8}
