@@ -254,6 +254,33 @@ body::after{content:"";position:fixed;left:-50%;right:-50%;bottom:0;height:45vh;
 @keyframes grow{from{transform:scaleY(0)}}
 .card:has(.radarwrap.full){backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:visible;animation:none!important;transform:none;filter:none}
 @media (prefers-reduced-motion:reduce){.scan::after,.card .shine,.temp,.fxin,.rainchart .bar,.place svg{animation:none!important}}
+
+/* ================= EFFECTEN 2 ================= */
+body.shake .wrap{animation:shake .5s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translate(-1px,1px)}20%,80%{transform:translate(3px,-2px)}30%,50%,70%{transform:translate(-5px,2px)}40%,60%{transform:translate(5px,-1px)}}
+#boot{position:fixed;inset:0;z-index:200;background:#02050b;display:flex;flex-direction:column;justify-content:center;padding:0 32px;font-family:Orbitron,monospace;color:var(--neon);font-size:12px;letter-spacing:1.5px;line-height:2;text-shadow:0 0 8px rgba(56,243,255,.7);transition:opacity .45s,filter .45s}
+#boot.out{opacity:0;filter:blur(8px) brightness(2);pointer-events:none}
+#boot .logo{font-size:26px;font-weight:700;letter-spacing:6px;margin-bottom:18px;animation:flick 1.2s steps(1) infinite}
+@keyframes flick{0%,100%{opacity:1}42%{opacity:.4}44%{opacity:1}71%{opacity:.7}72%{opacity:1}}
+#boot .bar{height:3px;background:rgba(56,243,255,.15);margin-top:18px;overflow:hidden;border-radius:2px}
+#boot .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--neon),var(--neon2));box-shadow:0 0 10px var(--neon);transition:width .25s}
+#boot .ok{color:#7dffb2}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}
+#trail{position:fixed;inset:0;width:100%;height:100%;z-index:35;pointer-events:none}
+.hero{position:relative}
+.ring{position:absolute;left:50%;width:230px;height:230px;margin-left:-115px;pointer-events:none;z-index:-1;opacity:.8}
+.ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ring .r1{animation:rot 18s linear infinite}.ring .r2{animation:rot 11s linear infinite reverse}.ring .r3{animation:rot 40s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.hour .ic{animation:bob 3.2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px);filter:drop-shadow(0 0 6px rgba(56,243,255,.6))}}
+.range i{transform-origin:left;animation:fill 1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fill{from{transform:scaleX(0)}}
+.card.tilt{transition:transform .08s linear}
+.card.untilt{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.caret::after{content:"▌";color:var(--neon);animation:flick .8s steps(1) infinite;margin-left:1px}
+#sky,#fx{transition:transform .25s ease-out}
+@media (prefers-reduced-motion:reduce){#boot{display:none}.ring svg,.hour .ic,.range i{animation:none!important}}
 </style>
 </head>
 <body>
@@ -541,6 +568,7 @@ function render(d, stale){
   const loc = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7.5 3L13.5 21z"/></svg>';
   $("place").innerHTML = (place.gps ? loc : "") + escapeHTML(place.name);
   $("temp").textContent = R(c.temperature_2m) + "°";
+  window.__wind = [c.wind_speed_10m || 0, c.wind_direction_10m || 0];
   $("cond").textContent = wmo(c.weather_code)[0];
   $("hilo").textContent = `H:${R(dy.temperature_2m_max[0])}°  L:${R(dy.temperature_2m_min[0])}°`;
   const t = new Date(d.at);
@@ -857,6 +885,7 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
   function size(){ DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W*DPR; cv.height = H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
   addEventListener("resize", size); size();
   const rnd = (a,b) => a + Math.random()*(b-a);
+  const windX = () => { const w = window.__wind; if(!w) return .15; return -Math.sin(w[1]*Math.PI/180) * Math.min(.9, .08 + w[0]/45); };
   function make(){
     parts = [];
     const n = mode === "rain" || mode === "storm" ? (heavy ? 260 : 150) : mode === "snow" ? 120 : mode === "fog" ? 14 : !day && (mode === "clear") ? 140 : 50;
@@ -883,12 +912,13 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
       ctx.lineCap = "round";
       for(const p of parts){
         ctx.strokeStyle = `rgba(120,240,255,${.25+.45*p.z})`; ctx.lineWidth = p.z*1.3;
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.l*.25, p.y - p.l); ctx.stroke();
-        p.y += p.v*dt; p.x -= p.v*.25*dt;
-        if(p.y > H){ if(p.z > .75){ ctx.strokeStyle = "rgba(120,240,255,.5)"; ctx.beginPath(); ctx.ellipse(p.x, H-4, 6*p.z, 1.5, 0, 0, 6.3); ctx.stroke(); } Object.assign(p, spawn(false)); p.x = rnd(0,W+60); }
+        const sl = windX(); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.l*sl, p.y - p.l); ctx.stroke();
+        p.y += p.v*dt; p.x += p.v*sl*dt;
+        if(p.y > H){ if(p.z > .75){ ctx.strokeStyle = "rgba(120,240,255,.5)"; ctx.beginPath(); ctx.ellipse(p.x, H-4, 6*p.z, 1.5, 0, 0, 6.3); ctx.stroke(); } Object.assign(p, spawn(false)); p.x = rnd(-80,W+80); if(p.x < 0 && windX() < 0) p.x += W; if(p.x > W && windX() > 0) p.x -= W; }
       }
       if(mode === "storm"){
-        if(ts > nextBolt){ bolt = drawBolt(); nextBolt = ts + rnd(4000,11000); flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on"); }
+        if(ts > nextBolt){ bolt = drawBolt(); nextBolt = ts + rnd(4000,11000); flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
+          setTimeout(() => { document.body.classList.add("shake"); navigator.vibrate && navigator.vibrate([30,40,60]); setTimeout(() => document.body.classList.remove("shake"), 600); }, rnd(300,1200)); }
         if(bolt){ bolt.t += dt; const a = Math.max(0, 1 - bolt.t/18);
           ctx.strokeStyle = `rgba(220,240,255,${a})`; ctx.lineWidth = 2.5; ctx.shadowColor = "#9fd8ff"; ctx.shadowBlur = 20;
           ctx.beginPath(); bolt.pts.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); ctx.shadowBlur = 0;
@@ -896,7 +926,7 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
       }
     }else if(mode === "snow"){
       for(const p of parts){
-        p.ph += .02*dt; p.y += p.v*dt; p.x += Math.sin(p.ph)*.5*dt;
+        p.ph += .02*dt; p.y += p.v*dt; p.x += (Math.sin(p.ph)*.5 + windX()*2)*dt; if(p.x > W+10) p.x = -10; if(p.x < -10) p.x = W+10;
         const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*3); g.addColorStop(0,"rgba(230,250,255,.95)"); g.addColorStop(1,"rgba(56,243,255,0)");
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*3,0,6.3); ctx.fill();
         if(p.y > H+10) Object.assign(p, spawn(false));
@@ -908,6 +938,13 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
         if(p.x - p.r > W) Object.assign(p, spawn(false));
       }
     }else if(!day && mode === "clear"){
+      for(let b = 0; b < 3; b++){
+        const y0 = H*(.12 + b*.07), g = ctx.createLinearGradient(0, y0-60, 0, y0+90);
+        g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(.5, b === 1 ? "rgba(178,107,255,.13)" : "rgba(60,255,180,.12)"); g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, H*.5);
+        for(let x = 0; x <= W; x += 12) ctx.lineTo(x, y0 + Math.sin(x/90 + ts/2200 + b*2)*26 + Math.sin(x/37 + ts/1300)*8);
+        ctx.lineTo(W, y0 + 140); ctx.lineTo(0, y0 + 140); ctx.fill();
+      }
       for(const p of parts){ p.ph += .03*p.sp*dt; ctx.fillStyle = `rgba(210,245,255,${.25+.6*Math.abs(Math.sin(p.ph))})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.3); ctx.fill(); }
       if(!shoot && Math.random() < .002*dt) shoot = {x:rnd(W*.3,W), y:rnd(0,H*.3), t:0};
       if(shoot){ shoot.t += dt; const L = 90, x = shoot.x - shoot.t*9, y = shoot.y + shoot.t*4, a = Math.max(0,1-shoot.t/40);
@@ -958,12 +995,144 @@ if("serviceWorker" in navigator && location.protocol === "https:") navigator.ser
     const r = host.getBoundingClientRect(), d = document.createElement("span");
     if(getComputedStyle(host).position === "static") host.style.position = "relative";
     d.className = "ripple"; d.style.left = (e.clientX - r.left) + "px"; d.style.top = (e.clientY - r.top) + "px";
-    host.appendChild(d); setTimeout(() => d.remove(), 650);
+    host.appendChild(d); setTimeout(() => d.remove(), 650); navigator.vibrate && navigator.vibrate(8);
   }, {passive:true});
 
   /* parallax van de kop bij scrollen */
   const hero = document.querySelector(".hero");
   if(hero && !reduce) addEventListener("scroll", () => { const y = Math.min(scrollY, 300); hero.style.transform = `translateY(${y*.35}px)`; hero.style.opacity = 1 - y/320; }, {passive:true});
+})();
+</script>
+
+<script>
+/* ================= EFFECTEN 2 ================= */
+(function(){
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, $ = id => document.getElementById(id);
+  const rnd = (a,b) => a + Math.random()*(b-a);
+
+  /* 1. opstartscherm (1x per sessie) */
+  let booted = false; try{ booted = sessionStorage.getItem("boot") === "1"; sessionStorage.setItem("boot","1"); }catch(e){}
+  if(!booted && !reduce){
+    const b = document.createElement("div"); b.id = "boot";
+    b.innerHTML = '<div class="logo">WEER//OS</div><div id="bl"></div><div class="bar"><i id="bb"></i></div>';
+    document.body.appendChild(b);
+    const lines = ["VERBINDING SATELLIET","LOCATIE TRIANGULEREN","ATMOSFEER SCANNEN","NEERSLAGRADAR SYNCEN","HOLOGRAM LADEN"];
+    let i = 0;
+    const next = () => {
+      if(i < lines.length){ $("bl").insertAdjacentHTML("beforeend", `<div>&gt; ${lines[i]}… <span class="ok">OK</span></div>`); $("bb").style.width = ((i+1)/lines.length*100) + "%"; i++; setTimeout(next, rnd(180,320)); }
+      else setTimeout(() => { b.classList.add("out"); setTimeout(() => b.remove(), 500); }, 250);
+    };
+    setTimeout(next, 250);
+    b.addEventListener("pointerdown", () => { b.classList.add("out"); setTimeout(() => b.remove(), 500); });
+  }
+
+  /* 2. HUD-ring om de temperatuur */
+  const hero = document.querySelector(".hero"), temp = $("temp");
+  const ring = document.createElement("div"); ring.className = "ring";
+  let ticks = ""; for(let a = 0; a < 360; a += 6) ticks += `<line x1="115" y1="${a % 30 ? 6 : 0}" x2="115" y2="12" transform="rotate(${a} 115 115)"/>`;
+  ring.innerHTML = `<svg viewBox="0 0 230 230"><g class="r3" style="transform-origin:115px 115px" stroke="rgba(56,243,255,.35)" stroke-width="1">${ticks}</g>
+    <circle class="r1" style="transform-origin:115px 115px" cx="115" cy="115" r="96" fill="none" stroke="rgba(56,243,255,.55)" stroke-width="1.5" stroke-dasharray="60 14 6 14"/>
+    <circle class="r2" style="transform-origin:115px 115px" cx="115" cy="115" r="84" fill="none" stroke="rgba(178,107,255,.5)" stroke-width="3" stroke-dasharray="2 10"/>
+    <circle cx="115" cy="115" r="72" fill="url(#rg)"/><defs><radialGradient id="rg"><stop offset="0" stop-color="rgba(56,243,255,.18)"/><stop offset="1" stop-color="rgba(56,243,255,0)"/></radialGradient></defs></svg>`;
+  hero.insertBefore(ring, hero.firstChild);
+  const placeRing = () => { ring.style.top = (temp.offsetTop + temp.offsetHeight/2 - 115) + "px"; };
+  addEventListener("resize", placeRing); new ResizeObserver(placeRing).observe(temp); placeRing();
+
+  /* 3. 'decoderen' van koppen en conditie */
+  const CH = "ABCDEFGHJKLMNOPRSTUVWXYZ0123456789#%&@$<>/";
+  const scrambled = new WeakMap();
+  function decode(el){
+    const target = el.dataset.txt || el.textContent; if(!target.trim()) return;
+    el.dataset.txt = target; let f = 0; const total = 18;
+    const tick = () => {
+      const out = [...target].map((ch, i) => ch === " " ? " " : i < f/total*target.length ? ch : CH[Math.random()*CH.length|0]).join("");
+      scrambled.set(el, out); setText(el, out);
+      if(++f <= total) setTimeout(tick, 35); else { scrambled.set(el, target); setText(el, target); }
+    };
+    tick();
+  }
+  function setText(el, t){ const n = [...el.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); if(n) n.textContent = t; else el.textContent = t; }
+  if(!reduce){
+    const io = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ io.unobserve(e.target); const n = [...e.target.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); if(n){ const sp = e.target; sp.dataset.txt = n.textContent; decode(sp); } } }), {threshold:.5});
+    const watch = () => document.querySelectorAll(".card h2:not([data-w])").forEach(h => { h.dataset.w = 1; io.observe(h); });
+    new MutationObserver(watch).observe(document.body, {childList:true, subtree:true}); watch();
+    const cond = $("cond");
+    new MutationObserver(() => { if(cond.textContent !== scrambled.get(cond)){ delete cond.dataset.txt; decode(cond); } }).observe(cond, {childList:true, characterData:true, subtree:true});
+  }
+
+  /* 4. typemachine voor samenvattingen */
+  ["rainSummary","daySummary"].forEach(id => {
+    const el = $(id); if(!el || reduce) return; let mine = null, job = 0;
+    new MutationObserver(() => {
+      if(el.textContent === mine) return; const full = el.textContent; if(!full) return; const me = ++job; let i = 0;
+      el.classList.add("caret");
+      const t = () => { if(me !== job) return; i += 2; mine = full.slice(0, i); el.textContent = mine; if(i < full.length) setTimeout(t, 18); else { mine = full; el.textContent = full; setTimeout(() => el.classList.remove("caret"), 1200); } };
+      t();
+    }).observe(el, {childList:true, characterData:true, subtree:true});
+  });
+
+  /* 5. 3D-kantelen van kaarten onder je vinger */
+  document.addEventListener("animationend", e => { if(e.animationName === "fxin") e.target.classList.remove("fxin"); });
+  let tc = null;
+  document.addEventListener("pointermove", e => {
+    if(e.pointerType === "mouse" && !e.buttons) return;
+    const c = e.target.closest(".card"); if(!c || c.querySelector(".radarwrap") || c.classList.contains("fxin")) return;
+    const r = c.getBoundingClientRect(), x = (e.clientX - r.left)/r.width - .5, y = (e.clientY - r.top)/r.height - .5;
+    c.classList.remove("untilt"); c.classList.add("tilt"); tc = c;
+    c.style.transform = `perspective(700px) rotateX(${(-y*7).toFixed(2)}deg) rotateY(${(x*9).toFixed(2)}deg) scale(1.01)`;
+  }, {passive:true});
+  const untilt = () => { if(!tc) return; tc.classList.remove("tilt"); tc.classList.add("untilt"); tc.style.transform = ""; tc = null; };
+  ["pointerup","pointercancel","scroll"].forEach(ev => addEventListener(ev, untilt, {passive:true}));
+
+  /* 6. vonkenspoor van je vinger + warp bij vernieuwen */
+  const cv = document.createElement("canvas"); cv.id = "trail"; document.body.appendChild(cv);
+  const ctx = cv.getContext("2d"); let W, H, sparks = [], streaks = [], loop = false;
+  const size = () => { const d = Math.min(2, devicePixelRatio||1); W = innerWidth; H = innerHeight; cv.width = W*d; cv.height = H*d; ctx.setTransform(d,0,0,d,0,0); };
+  addEventListener("resize", size); size();
+  function run(){
+    if(loop) return; loop = true;
+    const f = () => {
+      ctx.clearRect(0,0,W,H); ctx.globalCompositeOperation = "lighter";
+      sparks = sparks.filter(s => (s.l -= .035) > 0);
+      for(const s of sparks){ s.x += s.vx; s.y += s.vy; s.vy += .05; ctx.fillStyle = `hsla(${s.h},100%,65%,${s.l})`; ctx.beginPath(); ctx.arc(s.x, s.y, 2.2*s.l + .5, 0, 6.3); ctx.fill(); }
+      streaks = streaks.filter(s => (s.l -= .022) > 0);
+      for(const s of streaks){ s.d += s.v; s.v *= 1.07; const x1 = W/2 + Math.cos(s.a)*s.d, y1 = H*.3 + Math.sin(s.a)*s.d, x0 = W/2 + Math.cos(s.a)*s.d*.7, y0 = H*.3 + Math.sin(s.a)*s.d*.7;
+        ctx.strokeStyle = `hsla(${s.h},100%,70%,${s.l})`; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke(); }
+      ctx.globalCompositeOperation = "source-over";
+      if(sparks.length || streaks.length) requestAnimationFrame(f); else { ctx.clearRect(0,0,W,H); loop = false; }
+    };
+    requestAnimationFrame(f);
+  }
+  if(!reduce){
+    let lastT = 0;
+    document.addEventListener("pointermove", e => {
+      if(e.pointerType === "mouse" && !e.buttons) return; if(e.target.closest("#map,.panel")) return;
+      const now = performance.now(); if(now - lastT < 16) return; lastT = now;
+      for(let i = 0; i < 3; i++) sparks.push({x:e.clientX, y:e.clientY, vx:rnd(-1.2,1.2), vy:rnd(-1.5,.5), l:1, h:rnd(180,280)});
+      if(sparks.length > 260) sparks.splice(0, sparks.length - 260); run();
+    }, {passive:true});
+    const warp = () => { for(let i = 0; i < 140; i++) streaks.push({a:rnd(0,6.3), d:rnd(5,40), v:rnd(2,5), l:1, h:rnd(180,280)}); run(); };
+    const br = $("btnRefresh"); br && br.addEventListener("click", warp);
+    window.FXwarp = warp;
+  }
+
+  /* 7. kantelen van de telefoon = parallax, schudden = vernieuwen */
+  let lastShake = 0;
+  function onOri(e){ if(e.gamma == null) return; const x = Math.max(-25, Math.min(25, e.gamma)), y = Math.max(-25, Math.min(25, (e.beta || 45) - 45));
+    $("fx").style.transform = `translate(${x*.6}px,${y*.6}px)`; $("sky").style.transform = `translate(${x*1.2}px,${y*1.2}px)`; ring.style.translate = `${-x*.4}px ${-y*.4}px`; }
+  function onMot(e){ const a = e.accelerationIncludingGravity || e.acceleration; if(!a) return;
+    const g = Math.hypot(a.x||0, a.y||0, a.z||0), now = Date.now();
+    if(g > 28 && now - lastShake > 3000){ lastShake = now; navigator.vibrate && navigator.vibrate([20,30,20]); const br = $("btnRefresh"); br && br.click(); } }
+  function enableSensors(){ if(reduce) return; addEventListener("deviceorientation", onOri); addEventListener("devicemotion", onMot); }
+  if(typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function"){
+    document.addEventListener("click", function ask(){ document.removeEventListener("click", ask);
+      Promise.all([DeviceOrientationEvent.requestPermission(), typeof DeviceMotionEvent.requestPermission === "function" ? DeviceMotionEvent.requestPermission() : "granted"])
+        .then(r => { if(r.includes("granted")) enableSensors(); }).catch(() => {}); });
+  } else enableSensors();
+
+  /* 8. uur-iconen golvend laten zweven */
+  const stagger = () => document.querySelectorAll(".hour .ic").forEach((el,i) => el.style.animationDelay = (i*.18) + "s");
+  new MutationObserver(stagger).observe(document.body, {childList:true, subtree:true}); stagger();
 })();
 </script>
 </body>
