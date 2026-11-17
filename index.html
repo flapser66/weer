@@ -73,7 +73,16 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .rainchart .bar.zero{background:rgba(255,255,255,.18)}
 .rainlines{position:absolute;inset:4px 0 0 0;pointer-events:none}
 .rainlines div{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.18);font-size:9px;color:var(--faint);text-align:right}
-.rainaxis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
+.rainaxis{position:relative;height:16px;font-size:11px;color:var(--muted);margin-top:4px}
+.rainaxis span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.rainaxis span.first{transform:none}.rainaxis span.last{transform:translateX(-100%)}
+.rainticks{position:absolute;inset:4px 0 0 0;pointer-events:none}
+.rainticks div{position:absolute;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.10)}
+.rainspans{position:relative;height:22px;margin-top:6px}
+.rainspans div{position:absolute;top:0;height:20px;border-radius:6px;background:rgba(143,210,255,.22);border:1px solid rgba(143,210,255,.55);color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;white-space:nowrap;overflow:visible;min-width:4px}
+.rainspans div span{position:relative;padding:0 4px}
+.rainpick{font-size:12px;color:var(--rain);height:15px;margin-top:2px}
+.rainchart .bar.sel{outline:2px solid #fff;outline-offset:-1px}
 .rainsrc{font-size:11px;color:var(--faint);margin-top:6px}
 
 /* daily */
@@ -189,6 +198,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
       <div class="summary" id="rainSummary"></div>
       <div class="rainchart" id="rainChart"></div>
       <div class="rainaxis" id="rainAxis"></div>
+      <div class="rainspans" id="rainSpans"></div>
+      <div class="rainpick" id="rainPick"></div>
       <div class="rainsrc" id="rainSrc"></div>
     </section>
 
@@ -458,36 +469,69 @@ function render(d, stale){
 function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 
 function renderRain(d, c){
-  let pts, src;
+  let pts, src, step;
   if(d.rain && d.rain.length){
-    pts = d.rain.slice(0, 24); src = "Buienradar · per 5 minuten";
+    pts = d.rain.slice(0, 24); src = "Buienradar · per 5 minuten"; step = 5;
   }else{
     const m = d.fc.minutely_15 || {time:[], precipitation:[]};
-    pts = m.time.map((t,i) => ({time:hm(t), mm:(m.precipitation[i] || 0) * 4})); src = "Open-Meteo · per kwartier";
+    pts = m.time.map((t,i) => ({time:hm(t), mm:(m.precipitation[i] || 0) * 4})); src = "Open-Meteo · per kwartier"; step = 15;
   }
   if(!pts.length){ $("rainCard").classList.add("hidden"); return; }
   $("rainCard").classList.remove("hidden");
+  const n = pts.length, pos = i => (i / n * 100).toFixed(2) + "%";
   const max = Math.max(2, ...pts.map(p => p.mm));
+  // tijdas: elk half uur een label + verticale hulplijn
+  const every = Math.max(1, Math.round(30 / step));
+  let ticks = "", axis = `<span class="first" style="left:0">Nu</span>`;
+  for(let i = every; i < n; i += every){
+    ticks += `<div style="left:${pos(i)}"></div>`;
+    if(i <= n - every / 2) axis += `<span style="left:${pos(i)}">${pts[i].time}</span>`;
+  }
   $("rainChart").innerHTML =
     '<div class="rainlines"><div style="top:0">' + (max > 5 ? "zwaar" : "matig") + '</div><div style="top:50%">licht</div></div>' +
-    pts.map(p => `<div class="bar${p.mm < .05 ? " zero" : ""}" style="height:${p.mm < .05 ? 2 : Math.max(6, Math.min(100, Math.sqrt(p.mm / max) * 100))}%" title="${p.time} · ${p.mm.toFixed(1)} mm/u"></div>`).join("");
-  const n = pts.length;
-  $("rainAxis").innerHTML = `<span>Nu</span><span>${pts[Math.floor(n/2)].time}</span><span>${pts[n-1].time}</span>`;
+    '<div class="rainticks">' + ticks + '</div>' +
+    pts.map((p,i) => `<div class="bar${p.mm < .05 ? " zero" : ""}" data-i="${i}" style="height:${p.mm < .05 ? 2 : Math.max(6, Math.min(100, Math.sqrt(p.mm / max) * 100))}%"></div>`).join("");
+  $("rainAxis").innerHTML = axis;
   $("rainSrc").textContent = src;
 
-  const wet = pts.map(p => p.mm >= .1);
+  // regenperiodes: van wanneer tot wanneer
+  const wet = pts.map(p => p.mm >= .1), spans = [];
+  for(let i = 0; i < n; i++) if(wet[i] && (i === 0 || !wet[i-1])){
+    let e = i; while(e + 1 < n && wet[e+1]) e++;
+    spans.push({s:i, e, from: i === 0 ? "nu" : pts[i].time, to: e + 1 < n ? pts[e+1].time : null, peak: Math.max(...pts.slice(i, e+1).map(p => p.mm))});
+    i = e;
+  }
+  const label = sp => sp.to ? `${sp.from}–${sp.to}` : `${sp.from}–…`;
+  $("rainSpans").innerHTML = spans.map(sp =>
+    `<div style="left:${pos(sp.s)};width:calc(${pos(sp.e + 1)} - ${pos(sp.s)})"><span>${(sp.e - sp.s + 1) * step >= 20 ? label(sp) : ""}</span></div>`).join("");
+  $("rainSpans").style.display = spans.length ? "" : "none";
+
+  const kind = mm => mm >= 2.5 ? "flinke regen" : mm < .5 ? "lichte regen" : "regen";
   let s;
-  if(!wet.some(Boolean)) s = "Droog de komende 2 uur.";
-  else if(wet[0]){
-    const stop = wet.findIndex(w => !w);
-    const peak = Math.max(...pts.map(p => p.mm));
-    s = (stop < 0 ? "Het blijft regenen de komende 2 uur" : `Regen, droog rond ${pts[stop].time}`) + (peak >= 2.5 ? " · flinke buien" : peak < .5 ? " · lichte regen" : "") + ".";
-  }else{
-    const start = wet.findIndex(Boolean);
-    const mm = pts[start].mm;
-    s = `${mm >= 2.5 ? "Flinke regen" : mm < .5 ? "Lichte regen" : "Regen"} verwacht vanaf ${pts[start].time}.`;
+  if(!spans.length) s = "Droog de komende 2 uur.";
+  else{
+    s = spans.map((sp, k) => {
+      const k1 = k === 0 ? kind(sp.peak).replace(/^./, x => x.toUpperCase()) : kind(sp.peak);
+      if(sp.s === 0) return sp.to ? `${k1} tot ${sp.to}` : `${k1} de komende 2 uur`;
+      return sp.to ? `${k1} van ${sp.from} tot ${sp.to}` : `${k1} vanaf ${sp.from}`;
+    }).join(", daarna ");
+    s += spans[spans.length - 1].to ? ", daarna droog." : ".";
   }
   $("rainSummary").textContent = s;
+
+  // aantikken/slepen: tijd en hoeveelheid van een balk tonen
+  const chart = $("rainChart"), pick = $("rainPick");
+  pick.textContent = "Tik op de grafiek voor tijd en hoeveelheid";
+  const show = ev => {
+    const r = chart.getBoundingClientRect(), x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+    const i = Math.max(0, Math.min(n - 1, Math.floor(x / r.width * n)));
+    chart.querySelectorAll(".bar.sel").forEach(b => b.classList.remove("sel"));
+    chart.querySelector(`.bar[data-i="${i}"]`).classList.add("sel");
+    const p = pts[i], end = i + 1 < n ? pts[i+1].time : "";
+    pick.textContent = `${i === 0 ? "Nu" : p.time}${end ? "–" + end : ""} · ` + (p.mm < .05 ? "droog" : `${p.mm.toFixed(1).replace(".", ",")} mm/u (${kind(p.mm)})`);
+  };
+  chart.onpointerdown = chart.onpointermove = e => { if(e.pointerType !== "mouse" || e.buttons || e.type === "pointerdown") show(e); };
+  chart.style.touchAction = "pan-y";
 }
 
 function renderHours(h, dy, hi, c){
