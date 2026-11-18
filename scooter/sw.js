@@ -1,7 +1,7 @@
-const V='scooter-v1', TILES='scooter-tiles';
+const V='scooter-v2', TILES='scooter-tiles';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png',
  'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js','https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
- 'https://tiles.openfreemap.org/styles/liberty','https://tiles.openfreemap.org/styles/dark'];
+ 'https://tiles.openfreemap.org/styles/liberty','https://tiles.openfreemap.org/styles/fiord'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(V).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>{})))))});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(n=>n.startsWith('scooter-')&&n!==V&&n!==TILES).map(n=>caches.delete(n)))).then(()=>self.clients.claim())));
 async function trim(){const c=await caches.open(TILES);const k=await c.keys();if(k.length>4000)for(const r of k.slice(0,k.length-3500))await c.delete(r)}

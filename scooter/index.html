@@ -70,6 +70,8 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #recenter{position:fixed;right:14px;z-index:9;bottom:calc(24px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:#1b2027;color:#58a6ff;font-size:16px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 body.nav #recenter{bottom:calc(150px + env(safe-area-inset-bottom));right:28px}
 body.preview #recenter,body.preview #speedIdle{display:none}
+#themeBtn{position:fixed;right:14px;top:calc(80px + env(safe-area-inset-top));z-index:9;width:48px;height:48px;border-radius:50%;border:0;background:#1b2027;color:#fff;font-size:20px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+body.nav #themeBtn,body.preview #themeBtn{display:none}
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:42%;z-index:20;background:rgba(0,0,0,.85);padding:12px 18px;border-radius:12px;font-size:15px;max-width:85vw;text-align:center}
 #dlg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px}
 #dlg .card{width:100%;max-width:380px;padding:18px}
@@ -128,6 +130,7 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
   <button id="menuBtn">⋮</button>
 </div>
 <div id="navMenu" class="card hide">
+  <button id="mTheme"></button>
   <button id="mVoice">🔊 Stem aan</button>
   <button id="mOver">🗺 Route-overzicht</button>
   <button id="mStop" class="stop">✕ Navigatie stoppen</button>
@@ -135,6 +138,7 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
 
 <div id="speedIdle"><span id="spdIdle">0</span><small>km/u</small></div>
 <button id="recenter" class="hide">⌖</button>
+<button id="themeBtn"></button>
 <div id="toast" class="hide"></div>
 <div id="offline" class="hide">Offline – route gaat door, zoeken kan niet</div>
 <div id="dlg" class="hide"><div class="card">
@@ -148,7 +152,7 @@ const $=id=>document.getElementById(id);
 function load(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
-const settings=Object.assign({type:'snor',quiet:false,voice:true},load('sn_set',{}));
+const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto'},load('sn_set',{}));
 let places=load('sn_places',[]);
 const S={pos:null,acc:0,heading:0,speed:0,dest:null,destName:'',shape:[],cum:[],man:[],sum:null,limits:[],
   navigating:false,follow:true,idx:0,off:0,lastReroute:0,announced:{},wake:null,busy:false,firstFix:false};
@@ -156,12 +160,12 @@ const VALHALLA='https://valhalla1.openstreetmap.de';
 const plateMax=()=>settings.type==='snor'?25:45;
 
 /* ---------- kaart (OpenFreeMap vectorkaart, gratis) ---------- */
-const h=new Date().getHours();
-const night=h>=18||h<7;
+function styleUrl(){const h=new Date().getHours();const n=settings.theme==='night'||(settings.theme==='auto'&&(h>=18||h<7));
+  return 'https://tiles.openfreemap.org/styles/'+(n?'fiord':'liberty')}
 const map=new maplibregl.Map({container:'map',
-  style:'https://tiles.openfreemap.org/styles/'+(night?'dark':'liberty'),
+  style:styleUrl(),
   center:[6.118,51.862],zoom:14,attributionControl:{compact:true},pitchWithRotate:true});
-map.on('load',()=>{
+map.on('style.load',()=>{
   map.addSource('route',{type:'geojson',data:emptyLine()});
   map.addSource('done',{type:'geojson',data:emptyLine()});
   map.addLayer({id:'done-line',type:'line',source:'done',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#8a939c','line-width':['interpolate',['linear'],['zoom'],12,4,18,14],'line-opacity':.7}});
@@ -476,6 +480,11 @@ async function reroute(){
   S.busy=false;
 }
 if('speechSynthesis' in window)speechSynthesis.getVoices();
+const TH={auto:['🌓','Kaart: automatisch'],day:['☀️','Kaart: dag'],night:['🌙','Kaart: nacht']};
+function themeLabel(){$('themeBtn').textContent=TH[settings.theme][0];$('mTheme').textContent=TH[settings.theme][0]+' '+TH[settings.theme][1]}
+function cycleTheme(){settings.theme={auto:'day',day:'night',night:'auto'}[settings.theme];store('sn_set',settings);themeLabel();toast(TH[settings.theme][1],1200);
+  const u=styleUrl();if(map._curStyle!==u){map._curStyle=u;map.setStyle(u)}}
+map._curStyle=styleUrl();themeLabel();$('themeBtn').onclick=cycleTheme;$('mTheme').onclick=cycleTheme;
 function netState(){$('offline').classList.toggle('hide',navigator.onLine)}
 addEventListener('online',netState);addEventListener('offline',netState);netState();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'}).catch(()=>{});
