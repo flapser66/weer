@@ -376,12 +376,23 @@ function showIdleLimit(){const max=S.roadLimit?Math.min(S.roadLimit,plateMax()):
 async function idleLimit(ll){
   S.trail=(S.trail||[]);if(S.acc<30){S.trail.push(ll);if(S.trail.length>6)S.trail.shift()}
   showIdleLimit();
-  if(S.limBusy||S.speed<4||S.trail.length<3||!navigator.onLine||Date.now()-(S.limT||0)<8000)return;
+  if(S.limBusy||!navigator.onLine)return;
+  if(S.speed<4){ // stilstaan: dichtstbijzijnde weg opzoeken
+    if(S.acc>80||Date.now()-(S.limT||0)<5000||(S.locLL&&dist(S.locLL,ll)<15&&Date.now()-S.limT<60000))return;
+    S.limBusy=true;S.limT=Date.now();S.locLL=ll;
+    try{const j=await post('/locate',{locations:[{lat:ll[0],lon:ll[1]}],costing:'motor_scooter',verbose:true});
+      const e=((j&&j[0]&&j[0].edges)||[]).slice().sort((x,y)=>x.distance-y.distance)[0];
+      const v=e&&e.distance<50?+(e.edge_info&&e.edge_info.speed_limit):0;
+      S.roadLimit=v>0&&v<200?v:0;showIdleLimit();
+    }catch(e){}
+    S.limBusy=false;return;
+  }
+  if(S.trail.length<3||Date.now()-(S.limT||0)<8000)return;
   if(dist(S.trail[0],S.trail[S.trail.length-1])<25)return;
   S.limBusy=true;S.limT=Date.now();
   try{const j=await post('/trace_attributes',{shape:S.trail.map(p=>({lat:p[0],lon:p[1]})),shape_match:'map_snap',costing:'motor_scooter',
       filters:{attributes:['edge.speed_limit'],action:'include'}});
-    const e=(j.edges||[]).slice(-1)[0];S.roadLimit=e&&typeof e.speed_limit==='number'&&e.speed_limit>0?e.speed_limit:0;showIdleLimit();
+    const e=(j.edges||[]).slice(-1)[0];S.roadLimit=e&&typeof e.speed_limit==='number'&&e.speed_limit>0&&e.speed_limit<200?e.speed_limit:0;S.locLL=null;showIdleLimit();
   }catch(e){}
   S.limBusy=false;
 }
