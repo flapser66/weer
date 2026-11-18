@@ -80,7 +80,8 @@ button{font-family:inherit;cursor:pointer}
 #speedIdle small{font-size:10px;font-weight:600}
 #limitIdle{position:fixed;left:22px;z-index:9;bottom:calc(94px + env(safe-area-inset-bottom));width:46px;height:46px;border-radius:50%;background:#fff;border:5px solid #d1242f;color:#111;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.4)}
 #speedIdle.over{background:#da3633;color:#fff;border-color:#da3633}
-body.nav #limitIdle,body.preview #limitIdle{display:none}
+#limitName{position:fixed;left:76px;z-index:9;bottom:calc(104px + env(safe-area-inset-bottom));background:rgba(15,18,22,.85);padding:5px 10px;border-radius:8px;font-size:13px;font-weight:600;max-width:55vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.nav #limitIdle,body.preview #limitIdle,body.nav #limitName,body.preview #limitName{display:none}
 #gpsAcc{position:fixed;left:14px;z-index:9;bottom:calc(148px + env(safe-area-inset-bottom));background:rgba(15,18,22,.85);padding:4px 9px;border-radius:8px;font-size:12px;font-weight:600}
 #gpsAcc.bad{background:#9a6700}
 body.nav #gpsAcc{bottom:calc(98px + env(safe-area-inset-bottom));left:auto;right:28px}
@@ -199,6 +200,7 @@ body.glove #top,body.glove #preview,body.glove #bar,body.glove #navMenu,body.glo
 
 <div id="gpsAcc" class="hide"></div>
 <div id="limitIdle" class="hide"></div>
+<div id="limitName" class="hide"></div>
 <div id="speedIdle"><span id="spdIdle">0</span><small>km/u</small></div>
 <button id="recenter" class="hide">⌖</button>
 <button id="themeBtn" class="sideBtn" aria-label="Kaart">🌓</button>
@@ -370,9 +372,16 @@ function camera(instant){
 }
 
 /* ---------- maximumsnelheid zonder route ---------- */
-function showIdleLimit(){const max=S.roadLimit?Math.min(S.roadLimit,plateMax()):plateMax();$('limitIdle').textContent=S.roadLimit||'';$('limitIdle').classList.toggle('hide',!S.roadLimit);
+function showIdleLimit(){const max=S.roadLimit?Math.min(S.roadLimit,plateMax()):plateMax();$('limitIdle').textContent=S.roadLimit||'';$('limitIdle').classList.toggle('hide',!S.roadLimit);$('limitName').textContent=S.roadName||'';$('limitName').classList.toggle('hide',!S.roadLimit||!S.roadName);
   const over=S.speed>max+2;$('speedIdle').classList.toggle('over',over);
   if(over&&settings.beep&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}}
+async function overpassLimit(ll){ // reserve: dichtstbijzijnde weg met maxspeed-bord binnen 120 m
+  const q=`[out:json][timeout:15];way(around:120,${ll[0]},${ll[1]})["highway"~"^(trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road)(_link)?$"]["maxspeed"];out tags geom;`;
+  const j=await(await fetch(OVERPASS,{method:'POST',body:q})).json();let best=null;
+  for(const w of j.elements||[]){const ms=(w.tags&&w.tags.maxspeed)||'',v={'NL:urban':50,'NL:rural':80,'NL:zone30':30,'NL:zone60':60}[ms]||parseInt(ms);if(!(v>0&&v<200))continue;const g=w.geometry||[];
+    for(let i=0;i<g.length-1;i++){const r=proj(ll,[g[i].lat,g[i].lon],[g[i+1].lat,g[i+1].lon]);if(!best||r.d<best.d)best={d:r.d,v,name:(w.tags.name||'')}}}
+  return best&&best.d<=120?best:null;
+}
 async function idleLimit(ll){
   S.trail=(S.trail||[]);if(S.acc<30){S.trail.push(ll);if(S.trail.length>6)S.trail.shift()}
   showIdleLimit();
@@ -380,19 +389,21 @@ async function idleLimit(ll){
   if(S.speed<4){ // stilstaan: dichtstbijzijnde weg opzoeken
     if(S.acc>80||Date.now()-(S.limT||0)<5000||(S.locLL&&dist(S.locLL,ll)<15&&Date.now()-S.limT<60000))return;
     S.limBusy=true;S.limT=Date.now();S.locLL=ll;
-    try{const j=await post('/locate',{locations:[{lat:ll[0],lon:ll[1]}],costing:'motor_scooter',verbose:true});
-      const e=((j&&j[0]&&j[0].edges)||[]).slice().sort((x,y)=>x.distance-y.distance)[0];
-      const v=e&&e.distance<50?+(e.edge_info&&e.edge_info.speed_limit):0;
-      S.roadLimit=v>0&&v<200?v:0;showIdleLimit();
+    let res=null;
+    try{const j=await post('/locate',{locations:[{lat:ll[0],lon:ll[1],radius:120}],costing:'motor_scooter',verbose:true});
+      const e=((j&&j[0]&&j[0].edges)||[]).filter(x=>{const v=+(x.edge_info&&x.edge_info.speed_limit);return v>0&&v<200&&x.distance<120}).sort((x,y)=>x.distance-y.distance)[0];
+      if(e)res={v:+e.edge_info.speed_limit,name:(e.edge_info.names||[])[0]||'',d:e.distance};
     }catch(e){}
+    if(!res)try{res=await overpassLimit(ll)}catch(e){}
+    S.roadLimit=res?res.v:0;S.roadName=res?res.name:'';showIdleLimit();
     S.limBusy=false;return;
   }
   if(S.trail.length<3||Date.now()-(S.limT||0)<8000)return;
   if(dist(S.trail[0],S.trail[S.trail.length-1])<25)return;
   S.limBusy=true;S.limT=Date.now();
   try{const j=await post('/trace_attributes',{shape:S.trail.map(p=>({lat:p[0],lon:p[1]})),shape_match:'map_snap',costing:'motor_scooter',
-      filters:{attributes:['edge.speed_limit'],action:'include'}});
-    const e=(j.edges||[]).slice(-1)[0];S.roadLimit=e&&typeof e.speed_limit==='number'&&e.speed_limit>0&&e.speed_limit<200?e.speed_limit:0;S.locLL=null;showIdleLimit();
+      filters:{attributes:['edge.speed_limit','edge.names'],action:'include'}});
+    const e=(j.edges||[]).slice(-1)[0];S.roadLimit=e&&typeof e.speed_limit==='number'&&e.speed_limit>0&&e.speed_limit<200?e.speed_limit:0;S.roadName=(e&&e.names&&e.names[0])||'';S.locLL=null;showIdleLimit();
   }catch(e){}
   S.limBusy=false;
 }
