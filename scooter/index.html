@@ -76,6 +76,9 @@ body.nav #themeBtn,body.preview #themeBtn{display:none}
 #gpsAcc.bad{background:#9a6700}
 body.nav #gpsAcc{bottom:calc(98px + env(safe-area-inset-bottom));left:auto;right:28px}
 body.preview #gpsAcc{display:none}
+#map canvas{filter:brightness(var(--br,1))}
+#mapPanel{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:15;padding:16px}
+#brRange{width:100%;accent-color:#2f81f7;height:32px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:42%;z-index:20;background:rgba(0,0,0,.85);padding:12px 18px;border-radius:12px;font-size:15px;max-width:85vw;text-align:center}
 #dlg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px}
 #dlg .card{width:100%;max-width:380px;padding:18px}
@@ -145,6 +148,13 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
 <button id="recenter" class="hide">⌖</button>
 <button id="themeBtn"></button>
 <div id="toast" class="hide"></div>
+<div id="mapPanel" class="card hide">
+  <div style="font-weight:600;margin-bottom:10px">Kaart</div>
+  <div class="seg" id="segTheme"><button data-v="auto">🌓 Auto</button><button data-v="day">☀️ Dag</button><button data-v="night">🌙 Nacht</button></div>
+  <div style="display:flex;justify-content:space-between;margin:16px 0 6px;font-size:14px;color:#c9d1d9"><span>Helderheid</span><span id="brVal"></span></div>
+  <input type="range" id="brRange" min="30" max="130" step="5">
+  <button class="btn go" id="mpClose" style="width:100%;margin-top:14px">Klaar</button>
+</div>
 <div id="offline" class="hide">Offline – route gaat door, zoeken kan niet</div>
 <div id="dlg" class="hide"><div class="card">
   <div style="font-size:17px;font-weight:600">Bewaar als favoriet</div>
@@ -157,7 +167,7 @@ const $=id=>document.getElementById(id);
 function load(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
-const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto'},load('sn_set',{}));
+const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto',bright:100},load('sn_set',{}));
 let places=load('sn_places',[]);
 const S={pos:null,acc:0,heading:0,speed:0,dest:null,destName:'',shape:[],cum:[],man:[],sum:null,limits:[],
   navigating:false,follow:true,idx:0,off:0,lastReroute:0,announced:{},wake:null,busy:false,firstFix:false};
@@ -488,10 +498,17 @@ async function reroute(){
 }
 if('speechSynthesis' in window)speechSynthesis.getVoices();
 const TH={auto:['🌓','Kaart: automatisch'],day:['☀️','Kaart: dag'],night:['🌙','Kaart: nacht']};
-function themeLabel(){$('themeBtn').textContent=TH[settings.theme][0];$('mTheme').textContent=TH[settings.theme][0]+' '+TH[settings.theme][1]}
-function cycleTheme(){settings.theme={auto:'day',day:'night',night:'auto'}[settings.theme];store('sn_set',settings);themeLabel();toast(TH[settings.theme][1],1200);
+function themeLabel(){$('themeBtn').textContent=TH[settings.theme][0];$('mTheme').textContent=TH[settings.theme][0]+' Kaart & helderheid'}
+function setTheme(t){settings.theme=t;store('sn_set',settings);themeLabel();syncPanel();
   const u=styleUrl();if(map._curStyle!==u){map._curStyle=u;map.setStyle(u)}}
-map._curStyle=styleUrl();themeLabel();$('themeBtn').onclick=cycleTheme;$('mTheme').onclick=cycleTheme;
+function applyBright(){document.documentElement.style.setProperty('--br',settings.bright/100);$('brVal').textContent=settings.bright+'%'}
+function syncPanel(){document.querySelectorAll('#segTheme button').forEach(b=>b.classList.toggle('on',b.dataset.v===settings.theme));$('brRange').value=settings.bright;applyBright()}
+function openPanel(){$('navMenu').classList.add('hide');syncPanel();$('mapPanel').classList.remove('hide')}
+document.querySelectorAll('#segTheme button').forEach(b=>b.onclick=()=>setTheme(b.dataset.v));
+$('brRange').oninput=e=>{settings.bright=+e.target.value;applyBright()};
+$('brRange').onchange=()=>store('sn_set',settings);
+$('mpClose').onclick=()=>{store('sn_set',settings);$('mapPanel').classList.add('hide')};
+map._curStyle=styleUrl();themeLabel();applyBright();$('themeBtn').onclick=openPanel;$('mTheme').onclick=openPanel;
 function netState(){$('offline').classList.toggle('hide',navigator.onLine)}
 addEventListener('online',netState);addEventListener('offline',netState);netState();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'}).catch(()=>{});
