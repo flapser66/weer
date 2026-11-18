@@ -238,7 +238,7 @@ let places=load('sn_places',[]),recents=load('sn_recent',[]),trips=load('sn_trip
 const S={pos:null,acc:0,heading:0,speed:0,lastT:0,lastFix:0,dest:null,destName:'',vias:[],viaMarkers:[],routes:[],sel:0,
   shape:[],cum:[],man:[],sum:null,enc:'',limits:[],cams:[],navigating:false,follow:true,idx:0,off:0,lastReroute:0,
   announced:{},camAnn:{},wake:null,busy:false,firstFix:false,snap:null,dTo:null,along:0,mi:0,mode:null,dep:null,
-  trip:null,lastOdoPos:null,wx:'',wxKey:'',dl:false,autoStart:false};
+  trip:null,etaF:1,etaS:[],lastOdoPos:null,wx:'',wxKey:'',dl:false,autoStart:false};
 const VALHALLA='https://valhalla1.openstreetmap.de',OVERPASS='https://overpass-api.de/api/interpreter';
 const plateMax=()=>settings.type==='snor'?25:45;
 const WARN={vroeg:1.6,normaal:1,laat:.65};
@@ -546,7 +546,7 @@ async function fetchCams(rt){
   }catch(e){return[]}
 }
 function applyRoute(rt){
-  Object.assign(S,{shape:rt.shape,cum:rt.cum,man:rt.man,sum:rt.sum,enc:rt.enc,idx:0,off:0,announced:{},camAnn:{},limits:[],cams:[]});
+  Object.assign(S,{etaS:[],shape:rt.shape,cum:rt.cum,man:rt.man,sum:rt.sum,enc:rt.enc,idx:0,off:0,announced:{},camAnn:{},limits:[],cams:[]});
   drawRoute();
   fetchLimits(rt).then(l=>{if(S.enc===rt.enc)S.limits=l});
   fetchCams(rt).then(c=>{if(S.enc===rt.enc){S.cams=c;setCams()}});
@@ -688,7 +688,7 @@ async function startNav(){
   ['instr','bar','prog'].forEach(i=>$(i).classList.remove('hide'));
   navLabels();drawRoute();
   try{AC=AC||new AudioContext();AC.resume()}catch(e){}
-  S.trip={start:Date.now(),dist:0,max:0,to:S.destName};
+  S.trip={start:Date.now(),dist:0,max:0,to:S.destName};S.etaF=1;S.etaS=[];
   store('sn_active',{dest:S.dest,name:S.destName,vias:S.vias,t:Date.now()});
   recents=recents.filter(r=>r.name!==S.destName);recents.unshift({name:S.destName,ll:S.dest});recents=recents.slice(0,5);store('sn_recent',recents);
   history.pushState({nav:1},'');
@@ -748,6 +748,11 @@ function navTick(){
   const m=S.man[mi],dTo=Math.max(0,S.cum[Math.min(m.begin_shape_index,S.cum.length-1)]-along);S.dTo=dTo;
   let tRem=0;for(let j=mi;j<S.man.length;j++)tRem+=S.man[j].time||0;
   const cur=S.man[mi-1];if(cur&&cur.length>0)tRem+=cur.time*Math.min(1,dTo/(cur.length*1000));
+  // aankomsttijd bijstellen op je echte tempo (laatste 30 s – 5 min)
+  const now=Date.now(),sm=S.etaS||(S.etaS=[]);sm.push({t:now,pr:tRem});while(sm.length&&now-sm[0].t>300000)sm.shift();
+  const s0=sm[0],el=(now-s0.t)/1000,pd=s0.pr-tRem;
+  if(el>=30&&pd>15){const f=Math.max(0.7,Math.min(2.5,el/pd));S.etaF=S.etaF*0.9+f*0.1}
+  tRem*=S.etaF;
 
   const isDest=m.type>=4&&m.type<=6,isFinal=isDest&&mi===S.man.length-1,isVia=isDest&&!m.lastLeg;
   $('iIcon').innerHTML=arrowSVG(m.type);
