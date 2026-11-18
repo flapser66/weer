@@ -160,6 +160,7 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
   <div class="seg" id="segTheme"><button data-v="auto">🌓 Auto</button><button data-v="day">☀️ Dag</button><button data-v="night">🌙 Nacht</button></div>
   <div style="display:flex;justify-content:space-between;margin:16px 0 6px;font-size:14px;color:#c9d1d9"><span>Helderheid</span><span id="brVal"></span></div>
   <input type="range" id="brRange" min="30" max="130" step="5">
+  <button class="tog" id="tog3d" style="width:100%;margin-top:12px;padding:12px">3D-weergave</button>
   <button class="btn go" id="mpClose" style="width:100%;margin-top:14px">Klaar</button>
 </div>
 <div id="offline" class="hide">Offline – route gaat door, zoeken kan niet</div>
@@ -174,7 +175,7 @@ const $=id=>document.getElementById(id);
 function load(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
-const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto',bright:100,beep:true},load('sn_set',{}));
+const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto',bright:100,beep:true,view3d:true},load('sn_set',{}));
 let places=load('sn_places',[]);
 const S={pos:null,acc:0,heading:0,speed:0,dest:null,destName:'',shape:[],cum:[],man:[],sum:null,limits:[],
   navigating:false,follow:true,idx:0,off:0,lastReroute:0,announced:{},wake:null,busy:false,firstFix:false};
@@ -186,9 +187,22 @@ function styleUrl(){const h=new Date().getHours();const n=settings.theme==='nigh
   return 'https://tiles.openfreemap.org/styles/'+(n?'fiord':'liberty')}
 const map=new maplibregl.Map({container:'map',
   style:styleUrl(),
-  center:[6.118,51.862],zoom:14,attributionControl:{compact:true},pitchWithRotate:true});
+  center:[6.118,51.862],zoom:14,attributionControl:{compact:true},pitchWithRotate:true,maxPitch:70});
+function add3D(){
+  if(map.getLayer('b3d')||!map.getSource('openmaptiles'))return;
+  const nt=(map._curStyle||'').includes('fiord');
+  map.getStyle().layers.forEach(l=>{if(l.type==='fill-extrusion')map.setLayoutProperty(l.id,'visibility','none')});
+  map.addLayer({id:'b3d',type:'fill-extrusion',source:'openmaptiles','source-layer':'building',minzoom:14,
+    layout:{visibility:settings.view3d?'visible':'none'},
+    paint:{'fill-extrusion-color':nt?'#46516d':'#ddd6cb','fill-extrusion-height':['coalesce',['get','render_height'],7],
+      'fill-extrusion-base':['coalesce',['get','render_min_height'],0],'fill-extrusion-opacity':.9}});
+  try{map.setSky(nt?{'sky-color':'#0b1630','horizon-color':'#2a3a5e','fog-color':'#1b2540','sky-horizon-blend':.6,'horizon-fog-blend':.6,'fog-ground-blend':.7}
+    :{'sky-color':'#7fb6ff','horizon-color':'#e4eefb','fog-color':'#eef3f8','sky-horizon-blend':.6,'horizon-fog-blend':.6,'fog-ground-blend':.7})}catch(e){}
+}
 function ensureLayers(){
-  if(!map.isStyleLoaded()||map.getSource('route'))return;
+  if(!map.isStyleLoaded())return;
+  add3D();
+  if(map.getSource('route'))return;
   map.addSource('route',{type:'geojson',data:emptyLine()});
   map.addSource('done',{type:'geojson',data:emptyLine()});
   map.addLayer({id:'done-line',type:'line',source:'done',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#8a939c','line-width':['interpolate',['linear'],['zoom'],12,4,18,14],'line-opacity':.7}});
@@ -259,7 +273,7 @@ function onPos(p){
   if(!meAdded){meMarker.addTo(map);meAdded=true}
   S.snap=null;
   if(S.navigating)navTick();
-  if(!S.firstFix){S.firstFix=true;map.jumpTo({center:[ll[1],ll[0]],zoom:16})}
+  if(!S.firstFix){S.firstFix=true;map.jumpTo({center:[ll[1],ll[0]],zoom:16.5,pitch:settings.view3d?50:0})}
   else if(S.follow)camera(false);
 }
 function camera(instant){
@@ -267,9 +281,9 @@ function camera(instant){
   const pp=(S.navigating&&S.snap)||S.pos;const c=[pp[1],pp[0]];
   if(S.navigating){
     let z=S.speed<12?17.6:S.speed<30?17.1:16.6;if(S.dTo!=null&&S.dTo<120)z+=0.5;
-    map.easeTo({center:c,bearing:S.heading,pitch:58,zoom:z,duration:instant?600:950,easing:t=>t,
+    map.easeTo({center:c,bearing:S.heading,pitch:settings.view3d?60:0,zoom:z,duration:instant?600:950,easing:t=>t,
       padding:{top:Math.round(innerHeight*0.42),bottom:90,left:0,right:0}});
-  }else map.easeTo({center:c,duration:instant?500:900,padding:{top:0,bottom:0,left:0,right:0}});
+  }else map.easeTo({center:c,pitch:settings.view3d?50:0,bearing:S.speed>4?S.heading:map.getBearing(),duration:instant?500:900,padding:{top:Math.round(innerHeight*(settings.view3d?0.25:0)),bottom:0,left:0,right:0}});
 }
 
 /* ---------- zoeken (Photon / OpenStreetMap) ---------- */
@@ -532,7 +546,9 @@ function themeLabel(){$('themeBtn').textContent=TH[settings.theme][0];$('mTheme'
 function setTheme(t){settings.theme=t;store('sn_set',settings);themeLabel();syncPanel();
   const u=styleUrl();if(map._curStyle!==u){map._curStyle=u;map.setStyle(u,{diff:false})}}
 function applyBright(){document.documentElement.style.setProperty('--br',settings.bright/100);$('brVal').textContent=settings.bright+'%'}
-function syncPanel(){document.querySelectorAll('#segTheme button').forEach(b=>b.classList.toggle('on',b.dataset.v===settings.theme));$('brRange').value=settings.bright;applyBright()}
+function syncPanel(){document.querySelectorAll('#segTheme button').forEach(b=>b.classList.toggle('on',b.dataset.v===settings.theme));$('brRange').value=settings.bright;applyBright();$('tog3d').classList.toggle('on',settings.view3d);$('tog3d').textContent=settings.view3d?'3D-weergave: aan':'3D-weergave: uit'}
+$('tog3d').onclick=()=>{settings.view3d=!settings.view3d;store('sn_set',settings);syncPanel();
+  if(map.getLayer('b3d'))map.setLayoutProperty('b3d','visibility',settings.view3d?'visible':'none');if(S.follow)camera(true);else map.easeTo({pitch:settings.view3d?50:0})};
 function openPanel(){$('navMenu').classList.add('hide');syncPanel();$('mapPanel').classList.remove('hide')}
 document.querySelectorAll('#segTheme button').forEach(b=>b.onclick=()=>setTheme(b.dataset.v));
 $('brRange').oninput=e=>{settings.bright=+e.target.value;applyBright()};
