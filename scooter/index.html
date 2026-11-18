@@ -70,7 +70,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #recenter{position:fixed;right:14px;z-index:9;bottom:calc(24px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:#1b2027;color:#58a6ff;font-size:16px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 body.nav #recenter{bottom:calc(150px + env(safe-area-inset-bottom));right:28px}
 body.preview #recenter,body.preview #speedIdle{display:none}
-#themeBtn{position:fixed;right:14px;top:calc(80px + env(safe-area-inset-top));z-index:9;width:48px;height:48px;border-radius:50%;border:0;background:#1b2027;color:#fff;font-size:20px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+#themeBtn{position:fixed;right:14px;top:calc(128px + env(safe-area-inset-top));z-index:9;width:48px;height:48px;border-radius:50%;border:0;background:#1b2027;color:#fff;font-size:20px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 body.nav #themeBtn,body.preview #themeBtn{display:none}
 #gpsAcc{position:fixed;left:14px;z-index:9;bottom:calc(94px + env(safe-area-inset-bottom));background:rgba(15,18,22,.85);padding:4px 9px;border-radius:8px;font-size:12px;font-weight:600}
 #gpsAcc.bad{background:#9a6700}
@@ -79,6 +79,10 @@ body.preview #gpsAcc{display:none}
 #map canvas{filter:brightness(var(--br,1))}
 #mapPanel{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:15;padding:16px}
 #brRange{width:100%;accent-color:#2f81f7;height:32px}
+#chips{display:flex;gap:8px;margin-top:8px;overflow-x:auto;padding-right:60px}
+#chips:empty{display:none}#sug:not(.hide)~#chips{display:none}
+.chip{border:0;background:#1b2027;color:#fff;border-radius:20px;padding:9px 15px;font-size:14px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+#resume{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:14;padding:16px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:42%;z-index:20;background:rgba(0,0,0,.85);padding:12px 18px;border-radius:12px;font-size:15px;max-width:85vw;text-align:center}
 #dlg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px}
 #dlg .card{width:100%;max-width:380px;padding:18px}
@@ -99,7 +103,9 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
     <button id="qclear" class="hide">✕</button>
   </div>
   <div id="sug" class="card hide"></div>
+  <div id="chips"></div>
 </div>
+<div id="resume" class="card hide"><div id="rsTxt" style="margin-bottom:12px;font-size:16px"></div><div class="row" style="margin:0"><button class="btn" id="rsNo" style="flex:1">Nee</button><button class="btn go" id="rsYes">Hervatten</button></div></div>
 
 <div id="preview" class="card hide">
   <div id="pvName"></div>
@@ -218,7 +224,7 @@ const R=6371000,rad=x=>x*Math.PI/180;
 function dist(a,b){const dLa=rad(b[0]-a[0]),dLo=rad(b[1]-a[1]);const q=Math.sin(dLa/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
 function bearing(a,b){const y=Math.sin(rad(b[1]-a[1]))*Math.cos(rad(b[0]));const x=Math.cos(rad(a[0]))*Math.sin(rad(b[0]))-Math.sin(rad(a[0]))*Math.cos(rad(b[0]))*Math.cos(rad(b[1]-a[1]));return(Math.atan2(y,x)*180/Math.PI+360)%360}
 function proj(p,a,b){const k=Math.cos(rad(p[0]));const ax=a[1]*k,ay=a[0],dx=b[1]*k-ax,dy=b[0]-ay;const L2=dx*dx+dy*dy;
-  let t=L2?((p[1]*k-ax)*dx+(p[0]-ay)*dy)/L2:0;t=Math.max(0,Math.min(1,t));return{d:dist(p,[ay+t*dy,(ax+t*dx)/k]),t}}
+  let t=L2?((p[1]*k-ax)*dx+(p[0]-ay)*dy)/L2:0;t=Math.max(0,Math.min(1,t));const q=[ay+t*dy,(ax+t*dx)/k];return{d:dist(p,q),t,q}}
 function decode(s,prec=6){let i=0,la=0,lo=0,o=[],f=10**prec;while(i<s.length){for(const w of[0,1]){let b,sh=0,r=0;do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);const v=(r&1)?~(r>>1):(r>>1);if(w)lo+=v;else la+=v}o.push([la/f,lo/f])}return o}
 function fmtD(m){return m<1000?(m<100?Math.round(m/5)*5:Math.round(m/10)*10)+' m':(m/1000).toFixed(m<10000?1:0).replace('.',',')+' km'}
 function sayD(m){return m<1000?Math.max(50,Math.round(m/50)*50)+' meter':(m/1000).toFixed(1).replace('.',',').replace(',0','')+' kilometer'}
@@ -235,26 +241,31 @@ if('geolocation' in navigator){
 
 function onPos(p){
   const c=p.coords,ll=[c.latitude,c.longitude];
-  if(S.pos){const d=dist(S.pos,ll);
+  const now=p.timestamp||Date.now();
+  if(S.pos){const d=dist(S.pos,ll),dt=(now-S.lastT)/1000;
+    const sp=(c.speed!=null&&!isNaN(c.speed))?c.speed*3.6:(dt>0&&d>(c.accuracy||0)*0.5?d/dt*3.6:0);
+    S.speed=sp<2?0:S.speed*0.3+sp*0.7;
     let hd=null;
-    if(c.heading!=null&&!isNaN(c.heading)&&(c.speed||0)>1.5)hd=c.heading;else if(d>5)hd=bearing(S.pos,ll);
+    if(c.heading!=null&&!isNaN(c.heading)&&S.speed>4)hd=c.heading;else if(S.speed>4&&d>Math.max(5,(c.accuracy||0)*0.5))hd=bearing(S.pos,ll);
     if(hd!=null)S.heading=(S.heading+angDiff(S.heading,hd)*0.6+360)%360;}
-  if(c.speed!=null&&!isNaN(c.speed))S.speed=Math.max(0,c.speed*3.6);
+  else if(c.speed!=null&&!isNaN(c.speed))S.speed=c.speed*3.6;
+  S.lastT=now;S.lastFix=Date.now();
   S.pos=ll;S.acc=c.accuracy||0;
   const ga=$('gpsAcc');ga.textContent='GPS ±'+Math.round(S.acc)+' m';ga.classList.remove('hide');ga.classList.toggle('bad',S.acc>30);
   if(S.acc>500&&!S.warnedAcc){S.warnedAcc=1;toast('Locatie is onnauwkeurig: zet "Precieze locatie" aan voor Chrome',5000)}
   const sp=Math.round(S.speed);$('spd').textContent=sp;$('spdIdle').textContent=sp;
   meMarker.setLngLat([ll[1],ll[0]]).setRotation(S.heading);
   if(!meAdded){meMarker.addTo(map);meAdded=true}
+  S.snap=null;
+  if(S.navigating)navTick();
   if(!S.firstFix){S.firstFix=true;map.jumpTo({center:[ll[1],ll[0]],zoom:16})}
   else if(S.follow)camera(false);
-  if(S.navigating)navTick();
 }
 function camera(instant){
   if(!S.pos)return;
-  const c=[S.pos[1],S.pos[0]];
+  const pp=(S.navigating&&S.snap)||S.pos;const c=[pp[1],pp[0]];
   if(S.navigating){
-    const z=S.speed<12?17.6:S.speed<30?17.1:16.6;
+    let z=S.speed<12?17.6:S.speed<30?17.1:16.6;if(S.dTo!=null&&S.dTo<120)z+=0.5;
     map.easeTo({center:c,bearing:S.heading,pitch:58,zoom:z,duration:instant?600:950,easing:t=>t,
       padding:{top:Math.round(innerHeight*0.42),bottom:90,left:0,right:0}});
   }else map.easeTo({center:c,duration:instant?500:900,padding:{top:0,bottom:0,left:0,right:0}});
@@ -270,9 +281,15 @@ $('qclear').onclick=()=>{$('q').value='';$('qclear').classList.add('hide');showP
 map.on('click',()=>{$('sug').classList.add('hide');$('q').blur();$('navMenu').classList.add('hide')});
 
 function showPlaces(){
-  if(!places.length){$('sug').classList.add('hide');return}
-  renderSug(places.map(p=>({name:'★ '+p.name,sub:p.sub||'',ll:p.ll,raw:p.name,fav:true})));
+  const list=[...places.map(p=>({name:'★ '+p.name,sub:p.sub||'',ll:p.ll,raw:p.name,fav:true})),
+    ...recents.filter(r=>!places.some(p=>p.name===r.name)).map(r=>({name:'🕘 '+r.name,sub:'Recent',ll:r.ll,raw:r.name}))];
+  if(!list.length){$('sug').classList.add('hide');return}
+  renderSug(list);
 }
+let recents=load('sn_recent',[]);
+function addRecent(){recents=recents.filter(r=>r.name!==S.destName);recents.unshift({name:S.destName,ll:S.dest});recents=recents.slice(0,5);store('sn_recent',recents)}
+function renderChips(){const el=$('chips');el.innerHTML='';
+  places.slice(0,4).forEach(p=>{const b=document.createElement('button');b.className='chip';b.textContent='★ '+p.name;b.onclick=()=>{$('q').value=p.name;$('qclear').classList.remove('hide');setDest(p.ll,p.name)};el.appendChild(b)})}
 async function search(v){
   const c=S.pos||[map.getCenter().lat,map.getCenter().lng];
   try{const r=await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(v)}&limit=7&lat=${c[0]}&lon=${c[1]}`);
@@ -292,7 +309,7 @@ function renderSug(list){
     d.innerHTML=`${esc(it.name)}${it.sub?`<small>${esc(it.sub)}</small>`:''}`;
     d.onclick=()=>{el.classList.add('hide');$('q').blur();$('q').value=it.raw;$('qclear').classList.remove('hide');setDest(it.ll,it.raw)};
     if(it.fav){let lt;d.addEventListener('touchstart',()=>{lt=setTimeout(()=>{d.onclick=null;
-        places=places.filter(p=>p.name!==it.raw);store('sn_places',places);toast(`"${it.raw}" verwijderd`);showPlaces()},800)},{passive:true});
+        places=places.filter(p=>p.name!==it.raw);store('sn_places',places);renderChips();toast(`"${it.raw}" verwijderd`);showPlaces()},800)},{passive:true});
       d.addEventListener('touchend',()=>clearTimeout(lt));d.addEventListener('touchmove',()=>clearTimeout(lt),{passive:true})}
     el.appendChild(d)});
   el.classList.remove('hide');
@@ -357,6 +374,7 @@ async function planRoute(){
   try{const rt=await fetchRoute(S.pos,S.dest,false);applyRoute(rt);
     $('pvSum').textContent=`${fmtD(rt.sum.length*1000)} · ${fmtT(rt.sum.time)} · aankomst ${clock(rt.sum.time)}`;
     S.follow=false;overview(230);
+    if(S.autoStart){S.autoStart=false;startNav()}
   }catch(e){$('pvSum').textContent='⚠ '+e.message}
 }
 function overview(bottom){
@@ -374,11 +392,11 @@ $('pvSave').onclick=()=>{$('dlgIn').value=S.destName;$('dlg').classList.remove('
 $('dlgNo').onclick=()=>$('dlg').classList.add('hide');
 $('dlgOk').onclick=()=>{const n=$('dlgIn').value.trim();if(!n)return;
   places=places.filter(p=>p.name!==n);places.unshift({name:n,ll:S.dest,sub:S.destName!==n?S.destName:''});places=places.slice(0,12);
-  store('sn_places',places);$('dlg').classList.add('hide');toast('Bewaard als favoriet ★')};
+  store('sn_places',places);renderChips();$('dlg').classList.add('hide');toast('Bewaard als favoriet ★')};
 $('pvGo').onclick=startNav;
 
 function clearRoute(){
-  S.dest=null;S.shape=[];$('preview').classList.add('hide');document.body.classList.remove('preview');
+  S.dest=null;S.autoStart=false;S.shape=[];$('preview').classList.add('hide');document.body.classList.remove('preview');
   if(map.getSource('route')){map.getSource('route').setData(emptyLine());map.getSource('done').setData(emptyLine())}
   destMarker?.remove();
   $('q').value='';$('qclear').classList.add('hide');
@@ -411,13 +429,16 @@ async function startNav(){
   ['preview','top','recenter','speedIdle'].forEach(i=>$(i).classList.add('hide'));
   ['instr','bar','prog','curStreet'].forEach(i=>$(i).classList.remove('hide'));
   setVoiceLabel();
+  try{AC=AC||new AudioContext();AC.resume()}catch(e){}
+  store('sn_active',{dest:S.dest,name:S.destName,t:Date.now()});addRecent();
+  history.pushState({nav:1},'');
   try{S.wake=await navigator.wakeLock?.request('screen')}catch(e){}
   say(S.man[0]?.verbal_pre_transition_instruction||S.man[0]?.instruction);
   S.announced[0]={far:1,near:1};
   if(S.pos){camera(true);navTick()}
 }
 function stopNav(){
-  S.navigating=false;window.speechSynthesis?.cancel();
+  S.navigating=false;S.dTo=null;window.speechSynthesis?.cancel();store('sn_active',null);
   try{S.wake?.release()}catch(e){}S.wake=null;
   document.body.classList.remove('nav');
   ['instr','iThen','bar','prog','curStreet','navMenu'].forEach(i=>$(i).classList.add('hide'));
@@ -434,25 +455,28 @@ function navTick(){
   const p=S.pos,sh=S.shape;if(sh.length<2)return;
   let best={d:1e9,i:S.idx,t:0};
   const a=Math.max(0,S.idx-3),b=Math.min(sh.length-1,S.idx+300);
-  for(let i=a;i<b;i++){const r=proj(p,sh[i],sh[i+1]);if(r.d<best.d)best={d:r.d,i,t:r.t}}
-  if(best.d>50)for(let i=0;i<sh.length-1;i++){const r=proj(p,sh[i],sh[i+1]);if(r.d<best.d)best={d:r.d,i,t:r.t}}
+  for(let i=a;i<b;i++){const r=proj(p,sh[i],sh[i+1]);if(r.d<best.d)best={d:r.d,i,t:r.t,q:r.q}}
+  if(best.d>50)for(let i=0;i<sh.length-1;i++){const r=proj(p,sh[i],sh[i+1]);if(r.d<best.d)best={d:r.d,i,t:r.t,q:r.q}}
 
   // snelheid t.o.v. maximum (kenteken én bord)
   const road=S.limits[best.i]||0,max=road?Math.min(road,plateMax()):plateMax();
   $('limit').textContent=max;
-  $('spdNow').classList.toggle('over',S.speed>max+2);
+  const over=S.speed>max+2;$('spdNow').classList.toggle('over',over);
+  if(over&&settings.voice&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}
 
   if(best.d>Math.max(35,S.acc*1.5)){ // van de route af
     S.off++;if(S.off>=3&&!S.busy&&Date.now()-S.lastReroute>12000)reroute();
     return;
   }
   S.off=0;S.idx=best.i;
+  if(S.acc<60&&best.q){S.snap=best.q;meMarker.setLngLat([best.q[1],best.q[0]]);if(S.speed>4){S.heading=bearing(sh[best.i],sh[best.i+1]);meMarker.setRotation(S.heading)}}
 
   const along=S.cum[best.i]+best.t*(S.cum[best.i+1]-S.cum[best.i]);
   const total=S.cum[S.cum.length-1],remain=Math.max(0,total-along);
   let mi=S.man.findIndex(m=>m.begin_shape_index>best.i);if(mi<0)mi=S.man.length-1;
   const m=S.man[mi],dTo=Math.max(0,S.cum[Math.min(m.begin_shape_index,S.cum.length-1)]-along);
 
+  S.dTo=dTo;
   let tRem=0;for(let j=mi;j<S.man.length;j++)tRem+=S.man[j].time||0;
   const cur=S.man[mi-1];if(cur&&cur.length>0)tRem+=cur.time*Math.min(1,dTo/(cur.length*1000));
 
@@ -477,7 +501,7 @@ function navTick(){
 
   // gereden stuk grijs
   if(map.getSource('route')){
-    const cut=[p[1],p[0]];
+    const cut=best.q?[best.q[1],best.q[0]]:[p[1],p[0]];
     map.getSource('done').setData({type:'Feature',geometry:{type:'LineString',coordinates:[...toLngLat(sh.slice(0,best.i+1)),cut]}});
     map.getSource('route').setData({type:'Feature',geometry:{type:'LineString',coordinates:[cut,...toLngLat(sh.slice(best.i+1))]}});
   }
@@ -512,6 +536,23 @@ $('brRange').oninput=e=>{settings.bright=+e.target.value;applyBright()};
 $('brRange').onchange=()=>store('sn_set',settings);
 $('mpClose').onclick=()=>{store('sn_set',settings);$('mapPanel').classList.add('hide')};
 map._curStyle=styleUrl();themeLabel();applyBright();$('themeBtn').onclick=openPanel;$('mTheme').onclick=openPanel;
+let AC;function beep(){try{AC=AC||new AudioContext();[0,.2].forEach(t=>{const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=880;o.connect(g);g.connect(AC.destination);
+  g.gain.setValueAtTime(.3,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+t+.15);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+.16)})}catch(e){}}
+addEventListener('deviceorientationabsolute',e=>{ // kompas als je stilstaat
+  if(e.alpha==null||S.speed>4||Date.now()-(S.lastComp||0)<250)return;S.lastComp=Date.now();
+  const hd=(360-e.alpha+(screen.orientation?.angle||0))%360;S.heading=(S.heading+angDiff(S.heading,hd)*0.3+360)%360;if(meAdded)meMarker.setRotation(S.heading)});
+setInterval(()=>{
+  if(S.lastFix&&Date.now()-S.lastFix>10000){const ga=$('gpsAcc');ga.textContent='GPS-signaal kwijt';ga.classList.add('bad')}
+  if(settings.theme==='auto'){const u=styleUrl();if(map._curStyle!==u){map._curStyle=u;map.setStyle(u,{diff:false})}}
+},5000);
+addEventListener('popstate',()=>{if(!S.navigating)return;
+  if(Date.now()-(S.backT||0)<2500){stopNav();return}
+  S.backT=Date.now();toast('Druk nogmaals op terug om de navigatie te stoppen');history.pushState({nav:1},'')});
+const act=load('sn_active',null);
+if(act&&act.dest&&Date.now()-act.t<6*3600e3){$('rsTxt').textContent='Navigatie naar '+act.name+' hervatten?';$('resume').classList.remove('hide')}
+$('rsNo').onclick=()=>{store('sn_active',null);$('resume').classList.add('hide')};
+$('rsYes').onclick=()=>{$('resume').classList.add('hide');S.autoStart=true;try{AC=AC||new AudioContext()}catch(e){}setDest(act.dest,act.name)};
+renderChips();
 function netState(){$('offline').classList.toggle('hide',navigator.onLine)}
 addEventListener('online',netState);addEventListener('offline',netState);netState();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'}).catch(()=>{});

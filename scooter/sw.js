@@ -1,4 +1,4 @@
-const V='scooter-v2', TILES='scooter-tiles';
+const V='scooter-v3', TILES='scooter-tiles';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png',
  'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js','https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
  'https://tiles.openfreemap.org/styles/liberty','https://tiles.openfreemap.org/styles/fiord'];
