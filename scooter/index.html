@@ -491,7 +491,38 @@ async function fetchRoutes(from,useHeading,wantAlts){
   if(wantAlts&&!S.vias.length)body.alternates=2;
   const j=await post('/route',body);
   if(!j.trip)throw new Error(j.error||'Geen route gevonden');
-  return[j.trip,...(j.alternates||[]).map(a=>a.trip).filter(Boolean)].map(parseTrip);
+  let routes=[j.trip,...(j.alternates||[]).map(a=>a.trip).filter(Boolean)].map(parseTrip);
+  if(bikeMode()){ // paden waar snorfietsen volgens OpenStreetMap niet mogen: uitsluiten en opnieuw rekenen
+    try{const ways=await getNoSnorWays(bboxOf(routes));
+      let bad=[];routes.forEach(r=>bad.push(...badPoints(r,ways)));
+      if(bad.length){body.exclude_locations=bad.slice(0,50).map(p=>({lat:p[0],lon:p[1]}));
+        const j2=await post('/route',body);
+        if(j2.trip){routes=[j2.trip,...(j2.alternates||[]).map(a=>a.trip).filter(Boolean)].map(parseTrip);routes.forEach(r=>r.warn=badPoints(r,ways).length>0)}
+        else routes.forEach(r=>r.warn=true)}
+    }catch(e){}
+  }
+  return routes;
+}
+function bboxOf(routes){let s=90,w=180,n=-90,e=-180;routes.forEach(r=>r.shape.forEach(([a,b])=>{s=Math.min(s,a);n=Math.max(n,a);w=Math.min(w,b);e=Math.max(e,b)}));return[s,w,n,e]}
+async function getNoSnorWays(bb){
+  const c=S.mofaCache;if(c&&c.bb[0]<=bb[0]&&c.bb[1]<=bb[1]&&c.bb[2]>=bb[2]&&c.bb[3]>=bb[3])return c.ways;
+  const m=.01,B=[bb[0]-m,bb[1]-m,bb[2]+m,bb[3]+m];if(B[2]-B[0]>0.6||B[3]-B[1]>0.9)return[];
+  const box=B.map(x=>x.toFixed(5)).join(',');
+  const q=`[out:json][timeout:25];(way["mofa"="no"](${box});way["highway"~"^(footway|pedestrian|steps)$"]["mofa"!~"^(yes|designated)$"]["moped"!~"^(yes|designated)$"](${box}););out geom;`;
+  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),8000);
+  try{const j=await(await fetch(OVERPASS,{method:'POST',body:q,signal:ctl.signal})).json();
+    const ways=(j.elements||[]).map(w=>(w.geometry||[]).map(g=>[g.lat,g.lon])).filter(g=>g.length>1);
+    S.mofaCache={bb:B,ways};return ways}finally{clearTimeout(t)}
+}
+function badPoints(rt,ways){
+  if(!ways.length)return[];const pts=[];let last=-1e9;
+  const wb=ways.map(g=>{let s=90,w=180,n=-90,e=-180;for(const[a,b]of g){s=Math.min(s,a);n=Math.max(n,a);w=Math.min(w,b);e=Math.max(e,b)}return[s-.0002,w-.0003,n+.0002,e+.0003]});
+  for(let i=0;i<rt.shape.length-1;i++){const a=rt.shape[i],b=rt.shape[i+1],len=rt.cum[i+1]-rt.cum[i];if(len<4)continue;
+    const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+    for(let k=0;k<ways.length;k++){const B=wb[k];if(mid[0]<B[0]||mid[0]>B[2]||mid[1]<B[1]||mid[1]>B[3])continue;
+      const g=ways[k];let hit=false;for(let j=0;j<g.length-1;j++)if(proj(mid,g[j],g[j+1]).d<3){hit=true;break}
+      if(hit){const al=rt.cum[i]+len/2;if(al-last>40){pts.push(mid);last=al}break}}}
+  return pts;
 }
 async function fetchLimits(rt){
   const lim=new Array(rt.shape.length).fill(0);
@@ -573,8 +604,9 @@ function updatePvSum(){const r=S.routes[S.sel];if(!r)return;
   $('pvSum').textContent=`${fmtD(r.sum.length*1000)} · ${fmtT(r.sum.time)} · ${S.dep?'vertrek '+hm(S.dep)+' → ':''}aankomst ${hm(arr)}`;
   renderExtra();fetchWeather(arr);
 }
+
 function renderExtra(){if(!S.dest||!S.pos)return;
-  $('pvExtra').textContent=`Hemelsbreed ${fmtD(dist(S.pos,S.dest))} ${compass(bearing(S.pos,S.dest))}`+(S.wx?' · '+S.wx:'')}
+  $('pvExtra').textContent=(S.routes[S.sel]?.warn?'⚠ Een stukje route gaat over een pad waar snorfietsen niet mogen · ':'')+`Hemelsbreed ${fmtD(dist(S.pos,S.dest))} ${compass(bearing(S.pos,S.dest))}`+(S.wx?' · '+S.wx:'')}
 async function fetchWeather(arr){
   const key=S.dest.join()+'|'+arr.getDate()+'-'+arr.getHours();if(S.wxKey===key)return;S.wxKey=key;S.wx='';renderExtra();
   try{const j=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${S.dest[0].toFixed(3)}&longitude=${S.dest[1].toFixed(3)}&hourly=precipitation,temperature_2m,wind_speed_10m&timezone=auto&forecast_days=3`)).json();
