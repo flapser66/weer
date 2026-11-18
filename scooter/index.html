@@ -72,6 +72,10 @@ body.nav #recenter{bottom:calc(150px + env(safe-area-inset-bottom));right:28px}
 body.preview #recenter,body.preview #speedIdle{display:none}
 #themeBtn{position:fixed;right:14px;top:calc(80px + env(safe-area-inset-top));z-index:9;width:48px;height:48px;border-radius:50%;border:0;background:#1b2027;color:#fff;font-size:20px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 body.nav #themeBtn,body.preview #themeBtn{display:none}
+#gpsAcc{position:fixed;left:14px;z-index:9;bottom:calc(94px + env(safe-area-inset-bottom));background:rgba(15,18,22,.85);padding:4px 9px;border-radius:8px;font-size:12px;font-weight:600}
+#gpsAcc.bad{background:#9a6700}
+body.nav #gpsAcc{bottom:calc(98px + env(safe-area-inset-bottom));left:auto;right:28px}
+body.preview #gpsAcc{display:none}
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:42%;z-index:20;background:rgba(0,0,0,.85);padding:12px 18px;border-radius:12px;font-size:15px;max-width:85vw;text-align:center}
 #dlg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px}
 #dlg .card{width:100%;max-width:380px;padding:18px}
@@ -136,6 +140,7 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
   <button id="mStop" class="stop">✕ Navigatie stoppen</button>
 </div>
 
+<div id="gpsAcc" class="hide"></div>
 <div id="speedIdle"><span id="spdIdle">0</span><small>km/u</small></div>
 <button id="recenter" class="hide">⌖</button>
 <button id="themeBtn"></button>
@@ -224,6 +229,8 @@ function onPos(p){
     if(hd!=null)S.heading=(S.heading+angDiff(S.heading,hd)*0.6+360)%360;}
   if(c.speed!=null&&!isNaN(c.speed))S.speed=Math.max(0,c.speed*3.6);
   S.pos=ll;S.acc=c.accuracy||0;
+  const ga=$('gpsAcc');ga.textContent='GPS ±'+Math.round(S.acc)+' m';ga.classList.remove('hide');ga.classList.toggle('bad',S.acc>30);
+  if(S.acc>500&&!S.warnedAcc){S.warnedAcc=1;toast('Locatie is onnauwkeurig: zet "Precieze locatie" aan voor Chrome',5000)}
   const sp=Math.round(S.speed);$('spd').textContent=sp;$('spdIdle').textContent=sp;
   meMarker.setLngLat([ll[1],ll[0]]).setRotation(S.heading);
   if(!meAdded){meMarker.addTo(map);meAdded=true}
