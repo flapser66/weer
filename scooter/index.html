@@ -230,7 +230,7 @@ function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- instellingen & opslag ---------- */
-const DEF={type:'snor',snorPath:true,quiet:false,ferry:true,unpaved:false,living:false,cams:true,voice:true,beep:true,rate:1.05,vol:1,warn:'normaal',
+const DEF={type:'snor',quiet:false,ferry:true,unpaved:false,living:false,cams:true,voice:true,beep:true,rate:1.05,vol:1,warn:'normaal',
   theme:'auto',bright:100,view3d:true,orient:'heading',glove:false,svcKm:2000,svcLast:null,odoOffset:0};
 const settings=Object.assign({},DEF,load('sn_set',{}));
 const saveSet=()=>store('sn_set',settings);
@@ -469,10 +469,10 @@ function goPlace(p){$('q').value=p.name;$('qclear').classList.remove('hide');set
 
 /* ---------- route (Valhalla) ---------- */
 async function post(path,body){const r=await fetch(VALHALLA+path,{method:'POST',body:JSON.stringify(body)});return r.json()}
-const bikeMode=()=>settings.type==='snor'&&settings.snorPath; // blauw kenteken: fietspaden meenemen
+const bikeMode=()=>settings.type==='snor'; // blauw kenteken: fietspaden meenemen
 const costName=()=>bikeMode()?'bicycle':'motor_scooter';
 function costing(){
-  if(bikeMode())return{bicycle:{bicycle_type:'Hybrid',cycling_speed:25,use_roads:settings.quiet?0.15:0.5,use_hills:0.5,
+  if(bikeMode())return{bicycle:{bicycle_type:'Hybrid',cycling_speed:25,use_roads:settings.quiet?0.05:0.15,use_hills:0.5,
     use_ferry:settings.ferry?0.5:0,avoid_bad_surfaces:settings.unpaved?0.9:0.25,use_living_streets:settings.living?0.05:0.5}};
   return{motor_scooter:{top_speed:plateMax(),use_primary:settings.quiet?0.1:0.5,use_hills:0.5,
   use_ferry:settings.ferry?0.5:0,exclude_unpaved:!!settings.unpaved,use_living_streets:settings.living?0.05:0.5}}}
@@ -812,7 +812,6 @@ function openRouteOptions(back){
   openSheet('Route-opties',
     SEG('Kenteken','type',[['snor','🟦 Blauw · 25 km/u'],['brom','🟨 Geel · 45 km/u']])+
     '<div class="sec">Vermijden</div>'+
-    SW('Blauw kenteken: via fietspaden','snorPath','Aan = fietspaden waar dat kan (snorfietsregel). Uit = alleen de rijbaan, zoals in o.a. Amsterdam')+
     SW('Rustige wegen','quiet','Liever kleine wegen dan doorgaande wegen')+
     SW('Pontjes / veerdiensten toestaan','ferry','Uit = pontjes zoveel mogelijk vermijden')+
     SW('Onverharde wegen vermijden','unpaved','Zand- en grindpaden overslaan')+
