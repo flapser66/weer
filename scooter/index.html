@@ -556,6 +556,7 @@ if(act&&act.dest&&Date.now()-act.t<6*3600e3){$('rsTxt').textContent='Navigatie n
 $('rsNo').onclick=()=>{store('sn_active',null);$('resume').classList.add('hide')};
 $('rsYes').onclick=()=>{$('resume').classList.add('hide');S.autoStart=true;try{AC=AC||new AudioContext()}catch(e){}setDest(act.dest,act.name)};
 renderChips();
+setTimeout(()=>{if(!S.lastFix)toast('Geen locatie ontvangen. Sta Locatie (precies) toe voor deze app in je Android-instellingen.',8000)},8000);
 function netState(){$('offline').classList.toggle('hide',navigator.onLine)}
 addEventListener('online',netState);addEventListener('offline',netState);netState();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'}).catch(()=>{});
