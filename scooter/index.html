@@ -78,7 +78,10 @@ button{font-family:inherit;cursor:pointer}
 #navMenu button.stop{background:#da3633}
 #speedIdle{position:fixed;left:14px;z-index:9;width:62px;height:62px;border-radius:50%;background:#fff;color:#111;border:4px solid #30363d;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:22px;line-height:1;bottom:calc(24px + env(safe-area-inset-bottom))}
 #speedIdle small{font-size:10px;font-weight:600}
-#gpsAcc{position:fixed;left:14px;z-index:9;bottom:calc(94px + env(safe-area-inset-bottom));background:rgba(15,18,22,.85);padding:4px 9px;border-radius:8px;font-size:12px;font-weight:600}
+#limitIdle{position:fixed;left:22px;z-index:9;bottom:calc(94px + env(safe-area-inset-bottom));width:46px;height:46px;border-radius:50%;background:#fff;border:5px solid #d1242f;color:#111;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+#speedIdle.over{background:#da3633;color:#fff;border-color:#da3633}
+body.nav #limitIdle,body.preview #limitIdle{display:none}
+#gpsAcc{position:fixed;left:14px;z-index:9;bottom:calc(148px + env(safe-area-inset-bottom));background:rgba(15,18,22,.85);padding:4px 9px;border-radius:8px;font-size:12px;font-weight:600}
 #gpsAcc.bad{background:#9a6700}
 body.nav #gpsAcc{bottom:calc(98px + env(safe-area-inset-bottom));left:auto;right:28px}
 #recenter{position:fixed;right:14px;z-index:9;bottom:calc(24px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:#1b2027;color:#58a6ff;font-size:16px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.4)}
@@ -195,6 +198,7 @@ body.glove #top,body.glove #preview,body.glove #bar,body.glove #navMenu,body.glo
 </div>
 
 <div id="gpsAcc" class="hide"></div>
+<div id="limitIdle">25</div>
 <div id="speedIdle"><span id="spdIdle">0</span><small>km/u</small></div>
 <button id="recenter" class="hide">⌖</button>
 <button id="themeBtn" class="sideBtn" aria-label="Kaart">🌓</button>
@@ -349,7 +353,7 @@ function onPos(p){
   meMarker.setLngLat([ll[1],ll[0]]).setRotation(S.heading);
   if(!meAdded){meMarker.addTo(map);meAdded=true}
   S.snap=null;
-  if(S.navigating)navTick();
+  if(S.navigating)navTick();else idleLimit(ll);
   if(!S.firstFix){S.firstFix=true;map.jumpTo({center:[ll[1],ll[0]],zoom:16.5,pitch:settings.view3d?50:0})}
   else if(S.follow)camera(false);
 }
@@ -363,6 +367,23 @@ function camera(instant){
       padding:{top:Math.round(innerHeight*0.42),bottom:90,left:0,right:0}});
   }else map.easeTo({center:c,pitch:settings.view3d?50:0,bearing:brg,duration:instant?500:900,
       padding:{top:Math.round(innerHeight*(settings.view3d?0.25:0)),bottom:0,left:0,right:0}});
+}
+
+/* ---------- maximumsnelheid zonder route ---------- */
+function showIdleLimit(){const max=S.roadLimit?Math.min(S.roadLimit,plateMax()):plateMax();$('limitIdle').textContent=max;
+  const over=S.speed>max+2;$('speedIdle').classList.toggle('over',over);
+  if(over&&settings.beep&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}}
+async function idleLimit(ll){
+  S.trail=(S.trail||[]);if(S.acc<30){S.trail.push(ll);if(S.trail.length>6)S.trail.shift()}
+  showIdleLimit();
+  if(S.limBusy||S.speed<4||S.trail.length<3||!navigator.onLine||Date.now()-(S.limT||0)<8000)return;
+  if(dist(S.trail[0],S.trail[S.trail.length-1])<25)return;
+  S.limBusy=true;S.limT=Date.now();
+  try{const j=await post('/trace_attributes',{shape:S.trail.map(p=>({lat:p[0],lon:p[1]})),shape_match:'map_snap',costing:'motor_scooter',
+      filters:{attributes:['edge.speed_limit'],action:'include'}});
+    const e=(j.edges||[]).slice(-1)[0];S.roadLimit=e&&typeof e.speed_limit==='number'&&e.speed_limit>0?e.speed_limit:0;showIdleLimit();
+  }catch(e){}
+  S.limBusy=false;
 }
 
 /* ---------- zoeken ---------- */
@@ -541,7 +562,7 @@ function overview(bottom){if(!S.shape.length)return;
   const b=new maplibregl.LngLatBounds();S.shape.forEach(p=>b.extend([p[1],p[0]]));
   map.fitBounds(b,{padding:{top:110,bottom,left:40,right:40},bearing:0,pitch:0,duration:800,maxZoom:17});
 }
-function syncToggles(){document.querySelectorAll('#segType button').forEach(b=>b.classList.toggle('on',b.dataset.v===settings.type))}
+function syncToggles(){showIdleLimit();document.querySelectorAll('#segType button').forEach(b=>b.classList.toggle('on',b.dataset.v===settings.type))}
 document.querySelectorAll('#segType button').forEach(b=>b.onclick=()=>{settings.type=b.dataset.v;saveSet();syncToggles();planRoute()});
 function addVia(ll,name){
   if(S.vias.length>=3){toast('Maximaal 3 tussenstops');return}
@@ -625,7 +646,7 @@ function stopNav(){
   store('sn_active',null);
   if(S.trip&&S.trip.dist>100){const t=S.trip,min=(Date.now()-t.start)/60000;
     trips.unshift({t:t.start,to:t.to,km:t.dist/1000,min,max:t.max});trips=trips.slice(0,50);store('sn_trips',trips)}
-  S.trip=null;store('sn_odo',odo);
+  S.trip=null;store('sn_odo',odo);S.trail=[];
   document.body.classList.remove('nav');
   ['instr','iThen','bar','prog','curStreet','navMenu','camWarn'].forEach(i=>$(i).classList.add('hide'));
   ['top','speedIdle'].forEach(i=>$(i).classList.remove('hide'));
