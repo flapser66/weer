@@ -144,6 +144,7 @@ body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
 </div>
 <div id="navMenu" class="card hide">
   <button id="mTheme"></button>
+  <button id="mBeep"></button>
   <button id="mVoice">🔊 Stem aan</button>
   <button id="mOver">🗺 Route-overzicht</button>
   <button id="mStop" class="stop">✕ Navigatie stoppen</button>
@@ -173,7 +174,7 @@ const $=id=>document.getElementById(id);
 function load(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
-const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto',bright:100},load('sn_set',{}));
+const settings=Object.assign({type:'snor',quiet:false,voice:true,theme:'auto',bright:100,beep:true},load('sn_set',{}));
 let places=load('sn_places',[]);
 const S={pos:null,acc:0,heading:0,speed:0,dest:null,destName:'',shape:[],cum:[],man:[],sum:null,limits:[],
   navigating:false,follow:true,idx:0,off:0,lastReroute:0,announced:{},wake:null,busy:false,firstFix:false};
@@ -420,7 +421,8 @@ function say(t){if(!settings.voice||!('speechSynthesis' in window)||!t)return;
   speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='nl-NL';
   const v=speechSynthesis.getVoices().find(v=>v.lang&&v.lang.toLowerCase().startsWith('nl'));if(v)u.voice=v;u.rate=1.05;speechSynthesis.speak(u)}
 const lc=s=>s?s.charAt(0).toLowerCase()+s.slice(1):'';
-function setVoiceLabel(){$('mVoice').textContent=settings.voice?'🔊 Stem aan':'🔇 Stem uit'}
+function setBeepLabel(){$('mBeep').textContent=settings.beep?'🔔 Snelheidspiep aan':'🔕 Snelheidspiep uit'}
+function setVoiceLabel(){setBeepLabel();$('mVoice').textContent=settings.voice?'🔊 Stem aan':'🔇 Stem uit'}
 
 async function startNav(){
   if(!S.shape.length)return;
@@ -446,6 +448,7 @@ function stopNav(){
   clearRoute();
 }
 document.addEventListener('visibilitychange',async()=>{if(S.navigating&&document.visibilityState==='visible'){try{S.wake=await navigator.wakeLock?.request('screen')}catch(e){}}});
+$('mBeep').onclick=()=>{settings.beep=!settings.beep;store('sn_set',settings);setBeepLabel();if(settings.beep)beep()};
 $('menuBtn').onclick=()=>$('navMenu').classList.toggle('hide');
 $('mStop').onclick=stopNav;
 $('mVoice').onclick=()=>{settings.voice=!settings.voice;store('sn_set',settings);setVoiceLabel();if(!settings.voice)window.speechSynthesis?.cancel()};
@@ -462,7 +465,7 @@ function navTick(){
   const road=S.limits[best.i]||0,max=road?Math.min(road,plateMax()):plateMax();
   $('limit').textContent=max;
   const over=S.speed>max+2;$('spdNow').classList.toggle('over',over);
-  if(over&&settings.voice&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}
+  if(over&&settings.beep&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}
 
   if(best.d>Math.max(35,S.acc*1.5)){ // van de route af
     S.off++;if(S.off>=3&&!S.busy&&Date.now()-S.lastReroute>12000)reroute();
