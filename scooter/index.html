@@ -179,7 +179,7 @@ body.glove #top,body.glove #preview,body.glove #bar,body.glove #navMenu,body.glo
 <div id="bar" class="hide">
   <div id="spdBox">
     <div id="spdNow"><b id="spd">0</b><small>km/u</small></div>
-    <div id="limit">25</div>
+    <div id="limit" class="hide"></div>
   </div>
   <div class="stat"><b id="sEta">--:--</b><small>Aankomst</small></div>
   <div class="stat"><b id="sTime">–</b><small>Reistijd</small></div>
@@ -198,7 +198,7 @@ body.glove #top,body.glove #preview,body.glove #bar,body.glove #navMenu,body.glo
 </div>
 
 <div id="gpsAcc" class="hide"></div>
-<div id="limitIdle">25</div>
+<div id="limitIdle" class="hide"></div>
 <div id="speedIdle"><span id="spdIdle">0</span><small>km/u</small></div>
 <button id="recenter" class="hide">⌖</button>
 <button id="themeBtn" class="sideBtn" aria-label="Kaart">🌓</button>
@@ -370,7 +370,7 @@ function camera(instant){
 }
 
 /* ---------- maximumsnelheid zonder route ---------- */
-function showIdleLimit(){const max=S.roadLimit?Math.min(S.roadLimit,plateMax()):plateMax();$('limitIdle').textContent=max;
+function showIdleLimit(){const max=S.roadLimit?Math.min(S.roadLimit,plateMax()):plateMax();$('limitIdle').textContent=S.roadLimit||'';$('limitIdle').classList.toggle('hide',!S.roadLimit);
   const over=S.speed>max+2;$('speedIdle').classList.toggle('over',over);
   if(over&&settings.beep&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}}
 async function idleLimit(ll){
@@ -671,7 +671,7 @@ function navTick(){
   if(best.d>50)for(let i=0;i<sh.length-1;i++){const r=proj(p,sh[i],sh[i+1]);if(r.d<best.d)best={d:r.d,i,t:r.t,q:r.q}}
 
   const road=S.limits[best.i]||0,max=road?Math.min(road,plateMax()):plateMax();
-  $('limit').textContent=max;
+  $('limit').textContent=road||'';$('limit').classList.toggle('hide',!road);
   const over=S.speed>max+2;$('spdNow').classList.toggle('over',over);
   if(over&&settings.beep&&Date.now()-(S.lastBeep||0)>20000){S.lastBeep=Date.now();beep()}
 
