@@ -28,6 +28,11 @@ button{font-family:inherit;cursor:pointer}
 #sug{margin-top:6px;max-height:55vh;overflow:auto}
 .si{padding:13px 16px;border-bottom:1px solid #2b323b;font-size:15px}
 .si:last-child{border:0}.si small{color:#8b949e;display:block;margin-top:2px}
+.si{display:flex;align-items:center;gap:8px}.si .st{flex:1;min-width:0}
+.si .del{border:0;background:#30363d;color:#c9d1d9;border-radius:8px;padding:6px 10px;font-size:13px;flex:none}
+.sh{padding:9px 16px 5px;font-size:12px;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #2b323b}
+.si.act{color:#ff7b72;justify-content:center;font-size:14px}
+.seg.wrap{flex-wrap:wrap;gap:3px}.seg.wrap button{flex:1 0 30%}
 #chips{display:flex;gap:8px;margin-top:8px;overflow-x:auto;padding-right:64px}
 #chips:empty{display:none}#sug:not(.hide)~#chips{display:none}
 .chip{border:0;background:#1b2027;color:#fff;border-radius:20px;padding:9px 15px;font-size:14px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.4)}
@@ -230,11 +235,11 @@ function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- instellingen & opslag ---------- */
-const DEF={type:'snor',quiet:false,ferry:true,unpaved:false,living:false,cams:true,voice:true,beep:true,rate:1.05,vol:1,warn:'normaal',
+const DEF={type:'snor',chime:'ding',quiet:false,ferry:true,unpaved:false,living:false,cams:true,voice:true,beep:true,rate:1.05,vol:1,warn:'normaal',
   theme:'auto',bright:100,view3d:true,orient:'heading',glove:false,svcKm:2000,svcLast:null,odoOffset:0};
 const settings=Object.assign({},DEF,load('sn_set',{}));
 const saveSet=()=>store('sn_set',settings);
-let places=load('sn_places',[]),recents=load('sn_recent',[]),trips=load('sn_trips',[]),odo=+load('sn_odo',0)||0;
+let places=load('sn_places',[]),recents=load('sn_recent',[]),hist=load('sn_hist',null),trips=load('sn_trips',[]),odo=+load('sn_odo',0)||0;
 const S={pos:null,acc:0,heading:0,speed:0,lastT:0,lastFix:0,dest:null,destName:'',vias:[],viaMarkers:[],routes:[],sel:0,
   shape:[],cum:[],man:[],sum:null,enc:'',limits:[],cams:[],navigating:false,follow:true,idx:0,off:0,lastReroute:0,
   announced:{},camAnn:{},wake:null,busy:false,firstFix:false,snap:null,dTo:null,along:0,mi:0,mode:null,dep:null,
@@ -418,9 +423,16 @@ $('qclear').onclick=()=>{$('q').value='';$('qclear').classList.add('hide');if(S.
 map.on('click',()=>{$('sug').classList.add('hide');$('q').blur();$('navMenu').classList.add('hide')});
 function setMode(m,ph){S.mode=m;$('q').placeholder=ph||'Waar wil je heen?';if(m){$('q').value='';$('q').focus();toast(ph,2000)}}
 
+if(!hist){hist=recents.map(r=>({name:r.name,sub:'',ll:r.ll,t:Date.now()}));store('sn_hist',hist)}
+const histDate=t=>{const d=new Date(t),n=new Date();return d.toDateString()===n.toDateString()?'vandaag '+hm(d):d.toLocaleDateString('nl-NL',{day:'numeric',month:'short'})};
+function addHist(name,ll,sub){if(!ll)return;const k=ll.map(x=>x.toFixed(4)).join();
+  hist=hist.filter(h=>!(h.name===name&&h.ll.map(x=>x.toFixed(4)).join()===k));hist.unshift({name,sub:sub||'',ll,t:Date.now()});hist=hist.slice(0,40);store('sn_hist',hist)}
+function delHist(h){hist=hist.filter(x=>x!==h);store('sn_hist',hist)}
 function showPlaces(){
-  const list=[...places.map(p=>({name:'★ '+p.name,sub:p.sub||'',ll:p.ll,raw:p.name})),
-    ...recents.filter(r=>!places.some(p=>p.name===r.name)).map(r=>({name:'🕘 '+r.name,sub:'Recent',ll:r.ll,raw:r.name}))];
+  const list=places.map(p=>({name:'★ '+p.name,sub:p.sub||'',ll:p.ll,raw:p.name}));
+  if(hist.length){list.push({hdr:'Geschiedenis'});
+    hist.slice(0,15).forEach(h=>list.push({name:'🕘 '+h.name,sub:histDate(h.t)+(h.sub?' · '+h.sub:''),ll:h.ll,raw:h.name,del:()=>{delHist(h);showPlaces()}}));
+    list.push({act:'Geschiedenis wissen',fn:el=>{if(el.dataset.c){hist=[];store('sn_hist',hist);showPlaces()}else{el.dataset.c=1;el.textContent='Zeker weten? Tik nogmaals'}}})}
   if(!list.length){$('sug').classList.add('hide');return}
   renderSug(list);
 }
@@ -440,9 +452,14 @@ async function search(v){
 function renderSug(list){
   const el=$('sug');el.innerHTML='';
   if(!list.length){el.innerHTML='<div class="si">Niets gevonden</div>';el.classList.remove('hide');return}
-  list.forEach(it=>{const d=document.createElement('div');d.className='si';d.dataset.ok=1;
-    d.innerHTML=`${esc(it.name)}${it.sub?`<small>${esc(it.sub)}</small>`:''}`;
+  list.forEach(it=>{const d=document.createElement('div');
+    if(it.hdr){d.className='sh';d.textContent=it.hdr;el.appendChild(d);return}
+    if(it.act){d.className='si act';d.textContent=it.act;d.onmousedown=e=>e.preventDefault();d.onclick=()=>it.fn(d);el.appendChild(d);return}
+    d.className='si';d.dataset.ok=1;
+    d.innerHTML=`<div class="st">${esc(it.name)}${it.sub?`<small>${esc(it.sub)}</small>`:''}</div>`;
     d.onclick=()=>{el.classList.add('hide');$('q').blur();pick(it)};
+    if(it.del){const b=document.createElement('button');b.className='del';b.textContent='✕';b.setAttribute('aria-label','Verwijderen');
+      b.onmousedown=e=>e.preventDefault();b.onclick=e=>{e.stopPropagation();it.del()};d.appendChild(b)}
     el.appendChild(d)});
   el.classList.remove('hide');
 }
@@ -450,7 +467,7 @@ function pick(it){
   if(S.mode==='via'){setMode(null);$('q').value=S.destName;addVia(it.ll,it.raw);return}
   if(S.mode&&S.mode.startsWith('set:')){const n=S.mode.slice(4);setMode(null);$('q').value='';$('qclear').classList.add('hide');
     savePlace(n,it.ll,it.raw);toast(n+' opgeslagen ✔');return}
-  $('q').value=it.raw;$('qclear').classList.remove('hide');setDest(it.ll,it.raw);
+  $('q').value=it.raw;$('qclear').classList.remove('hide');S.pickSub=(it.sub||'').split(' · ')[0];if(/^(vandaag|\d)/.test(S.pickSub))S.pickSub='';setDest(it.ll,it.raw);
 }
 function savePlace(n,ll,sub){places=places.filter(p=>p.name!==n);places.unshift({name:n,ll,sub:sub!==n?sub:''});places=places.slice(0,20);store('sn_places',places);renderChips()}
 
@@ -570,7 +587,7 @@ function prefetchTiles(shape){
 
 /* ---------- bestemming & preview ---------- */
 async function setDest(ll,name,vias){
-  S.dest=ll;S.destName=name;S.vias=vias||[];S.dep=null;S.sel=0;S.routes=[];
+  S.dest=ll;S.destName=name;S.vias=vias||[];S.dep=null;S.sel=0;S.routes=[];addHist(name,ll,S.pickSub);S.pickSub='';
   if(!destMarker)destMarker=new maplibregl.Marker({color:'#d1242f'});
   destMarker.setLngLat([ll[1],ll[0]]).addTo(map);
   document.body.classList.add('preview');
@@ -676,6 +693,14 @@ const lc=s=>s?s.charAt(0).toLowerCase()+s.slice(1):'';
 let AC=null;
 function beep(){try{AC=AC||new AudioContext();[0,.2].forEach(t=>{const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=880;o.connect(g);g.connect(AC.destination);
   g.gain.setValueAtTime(.3*(+settings.vol||1),AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+t+.15);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+.16)})}catch(e){}}
+const CHIMES={geen:[],ding:[[1046,0,.35,'sine']],dubbel:[[784,0,.18,'sine'],[1046,.17,.3,'sine']],
+  gong:[[523,0,.9,'sine'],[659,0,.9,'sine'],[784,0,.9,'sine']],tonen:[[660,0,.14,'triangle'],[880,.13,.14,'triangle'],[1100,.26,.25,'triangle']],klik:[[2000,0,.03,'square']]};
+function playChime(name){const c=CHIMES[name||settings.chime]||[];if(!c.length)return 0;
+  try{AC=AC||new AudioContext();AC.resume?.();const t0=AC.currentTime+.02;
+    c.forEach(([f,st,du,ty])=>{const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.value=f;o.connect(g);g.connect(AC.destination);
+      g.gain.setValueAtTime(.0001,t0+st);g.gain.exponentialRampToValueAtTime(.35*(+settings.vol||1),t0+st+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+st+du);o.start(t0+st);o.stop(t0+st+du+.02)});
+  }catch(e){}return Math.max(...c.map(x=>x[1]+x[2]))*1000}
+function instr(t){const ms=playChime();if(ms&&settings.voice){clearTimeout(S.sayT);S.sayT=setTimeout(()=>say(t),Math.min(ms,500)+80)}else say(t)}
 function navLabels(){$('mVoice').textContent=settings.voice?'🔊 Stem aan':'🔇 Stem uit';$('mBeep').textContent=settings.beep?'🔔 Snelheidspiep aan':'🔕 Snelheidspiep uit'}
 
 /* ---------- navigeren ---------- */
@@ -693,14 +718,13 @@ async function startNav(){
   recents=recents.filter(r=>r.name!==S.destName);recents.unshift({name:S.destName,ll:S.dest});recents=recents.slice(0,5);store('sn_recent',recents);
   history.pushState({nav:1},'');
   try{S.wake=await navigator.wakeLock?.request('screen')}catch(e){}
-  say(S.man[0]?.verbal_pre_transition_instruction||S.man[0]?.instruction);
+  instr(S.man[0]?.verbal_pre_transition_instruction||S.man[0]?.instruction);
   S.announced[0]={far:1,near:1};
   if(S.pos){navTick();camera(true)}
 }
 function stopNav(){
   if(!S.navigating)return;
   S.navigating=false;S.dTo=null;
-  try{window.speechSynthesis?.cancel()}catch(e){}
   try{S.wake?.release()}catch(e){}S.wake=null;
   store('sn_active',null);
   if(S.trip&&S.trip.dist>100){const t=S.trip,min=(Date.now()-t.start)/60000;
@@ -713,7 +737,7 @@ function stopNav(){
 }
 document.addEventListener('visibilitychange',async()=>{if(S.navigating&&document.visibilityState==='visible'){try{S.wake=await navigator.wakeLock?.request('screen')}catch(e){}}});
 $('menuBtn').onclick=()=>$('navMenu').classList.toggle('hide');
-$('mStop').onclick=stopNav;
+$('mStop').onclick=()=>{clearTimeout(S.sayT);try{speechSynthesis.cancel()}catch(e){}stopNav()};
 $('mVoice').onclick=()=>{settings.voice=!settings.voice;saveSet();navLabels();if(!settings.voice)try{speechSynthesis.cancel()}catch(e){}};
 $('mBeep').onclick=()=>{settings.beep=!settings.beep;saveSet();navLabels();if(settings.beep)beep()};
 $('mList').onclick=openDirections;
@@ -781,19 +805,19 @@ function navTick(){
   if(settings.cams&&S.cams.length){const c=S.cams.find(c=>c.along>along-5);
     if(c){const d=c.along-along,show=d<400*wm;$('camWarn').classList.toggle('hide',!show);
       if(show)$('camWarn').textContent='📷 Flitspaal '+fmtD(d)+(c.max?' · '+c.max+' km/u':'');
-      const an=S.camAnn[c.id]||(S.camAnn[c.id]={});if(!an.f&&d<300*wm){an.f=1;say('Let op, flitspaal over '+sayD(d))}}
+      const an=S.camAnn[c.id]||(S.camAnn[c.id]={});if(!an.f&&d<300*wm){an.f=1;instr('Let op, flitspaal over '+sayD(d))}}
     else $('camWarn').classList.add('hide');
   }else $('camWarn').classList.add('hide');
 
   const far=(settings.type==='snor'?150:300)*wm,near=(settings.type==='snor'?30:45)*Math.min(wm,1.3);
   const an=S.announced[mi]||(S.announced[mi]={});
-  if(!an.far&&dTo<=far&&dTo>near*2.5){an.far=1;say(`Over ${sayD(dTo)}, ${lc(m.verbal_transition_alert_instruction||m.instruction)}`)}
-  if(!an.near&&dTo<=near){an.near=1;an.far=1;say(m.verbal_pre_transition_instruction||m.instruction)}
+  if(!an.far&&dTo<=far&&dTo>near*2.5){an.far=1;instr(`Over ${sayD(dTo)}, ${lc(m.verbal_transition_alert_instruction||m.instruction)}`)}
+  if(!an.near&&dTo<=near){an.near=1;an.far=1;instr(m.verbal_pre_transition_instruction||m.instruction)}
 
   if(isVia&&dTo<25&&!an.via){an.via=1;const v=S.vias.shift();toast('📍 Tussenstop bereikt'+(v?': '+v.name:''),3000);
     store('sn_active',{dest:S.dest,name:S.destName,vias:S.vias,t:Date.now()})}
   if(remain<25||(isFinal&&dTo<20)){
-    say('Je bent op je bestemming');toast('🏁 Bestemming bereikt',3500);stopNav();
+    instr('Je bent op je bestemming');toast('🏁 Bestemming bereikt',3500);stopNav();
   }
 }
 async function reroute(force){
@@ -839,6 +863,7 @@ function openMenu(){listSheet('Menu',[
   ['🛣','Route-opties','Pontjes, onverhard, drukke wegen, woonerven',()=>openRouteOptions(openMenu)],
   ['⚙️','Instellingen','Kenteken, stem, waarschuwingen, grote knoppen',()=>openSettings(openMenu)],
   ['🗺','Kaart','Dag/nacht, helderheid, 3D, draaien',()=>openMapSheet(openMenu)],
+  ['📜','Zoekgeschiedenis','Eerder gekozen adressen',()=>openHist(openMenu)],
   ['🕘','Ritten','Afstand, tijd en snelheid per rit',()=>openTrips(openMenu)],
   ['🔧','Kilometerteller & onderhoud','',()=>openOdo(openMenu)],
   ['⬇️','Kaart offline opslaan','Voor rijden zonder internet',()=>openOffline(openMenu)],
@@ -861,18 +886,20 @@ function openRouteOptions(back){
 function openSettings(back){
   openSheet('Instellingen',
     SEG('Kenteken','type',[['snor','🟦 Blauw · 25'],['brom','🟨 Geel · 45']])+
-    '<div class="sec">Geluid</div>'+SW('Gesproken aanwijzingen','voice')+SW('Snelheidspiep bij te hard rijden','beep')+
+    '<div class="sec">Geluid</div>'+SW('Gesproken aanwijzingen','voice','Uit = alleen het geluid hieronder')+
+    SEG('Geluid bij een aanwijzing','chime',[['geen','Geen'],['ding','Ding'],['dubbel','Dubbel'],['gong','Gong'],['tonen','3 tonen'],['klik','Klik']]).replace('class="seg"','class="seg wrap"')+SW('Snelheidspiep bij te hard rijden','beep')+
     SEG('Spreeksnelheid','rate',[[0.9,'Langzaam'],[1.05,'Normaal'],[1.25,'Snel']])+
     RNG('Volume stem en piep','vol',0.2,1,0.1,v=>Math.round(v*100)+'%')+
     SEG('Afslagen aankondigen','warn',[['vroeg','Vroeg'],['normaal','Normaal'],['laat','Laat']])+
-    '<button class="btn" id="testVoice" style="width:100%;margin-top:12px">▶ Test stem</button>'+
+    '<button class="btn" id="testVoice" style="width:100%;margin-top:12px">▶ Test geluid en stem</button>'+
     '<div class="sec">Bediening</div>'+SW('Handschoenmodus','glove','Grotere knoppen en tekst')+
     '<div style="color:#8b949e;font-size:12px;margin-top:12px">Let op: Android regelt het volume van de stem soms zelf; gebruik dan de volumeknoppen van je telefoon.</div>',back);
   bindOpts(k=>{if(k==='vol')$('rv_vol').textContent=Math.round(settings.vol*100)+'%';
     if(k==='glove')document.body.classList.toggle('glove',settings.glove);
     if(k==='type'){syncToggles();if(S.navigating)reroute(true);else if(S.dest)planRoute()}
+    if(k==='chime')playChime();
     navLabels()});
-  $('testVoice').onclick=()=>{const v=settings.voice;settings.voice=true;say('Over 200 meter, sla rechtsaf');settings.voice=v};
+  $('testVoice').onclick=()=>instr('Over 200 meter, sla rechtsaf');
 }
 function openMapSheet(back){
   openSheet('Kaart',
@@ -924,6 +951,11 @@ function openHomeWork(back){
   listSheet('Thuis & Werk',['Thuis','Werk'].map(n=>{const p=places.find(x=>x.name===n);
     return[n==='Thuis'?'🏠':'💼',n,p?esc(p.sub||'Ingesteld'):'Nog niet ingesteld',()=>{closeSheet();setMode('set:'+n,'Zoek het adres voor '+n)},p?'Wijzig':'Instellen']}),
     '<div style="color:#8b949e;font-size:13px;margin-top:12px">Tip: houd het app-pictogram op je startscherm ingedrukt voor "Rijd naar huis" (werkt bij installeren via Chrome; bij de APK pas na opnieuw bouwen).</div>',back);
+}
+function openHist(back){
+  listSheet('Zoekgeschiedenis',hist.map(h=>['🕘',esc(h.name),histDate(h.t)+(h.sub?' · '+esc(h.sub):''),()=>{closeSheet();$('q').value=h.name;$('qclear').classList.remove('hide');setDest(h.ll,h.name)},'›']),
+    hist.length?'<button class="btn" id="clrHist" style="width:100%;margin-top:10px">Geschiedenis wissen</button>':'<div class="li"><div class="tx">Nog geen geschiedenis.</div></div>',back);
+  const b=$('clrHist');if(b)b.onclick=()=>{if(b.dataset.c){hist=[];store('sn_hist',hist);openHist(back)}else{b.dataset.c=1;b.textContent='Zeker weten? Tik nogmaals';b.style.background='#da3633'}};
 }
 function openTrips(back){
   const tot=trips.reduce((a,t)=>a+t.km,0);
