@@ -487,7 +487,7 @@ function goPlace(p){$('q').value=p.name;$('qclear').classList.remove('hide');set
 
 /* ---------- route (Valhalla) ---------- */
 async function post(path,body){const r=await fetch(VALHALLA+path,{method:'POST',body:JSON.stringify(body)});return r.json()}
-const bikeMode=()=>settings.type==='snor'; // blauw kenteken: fietspaden meenemen
+const bikeMode=()=>settings.type==='snor'&&!S.forceRoad; // in Duitsland (Mofa-regel) via de rijbaan // blauw kenteken: fietspaden meenemen
 const costName=()=>bikeMode()?'bicycle':'motor_scooter';
 function costing(){
   if(bikeMode())return{bicycle:{bicycle_type:'Hybrid',cycling_speed:25,use_roads:settings.quiet?0.05:0.15,use_hills:0.5,
@@ -501,7 +501,16 @@ function parseTrip(t){let shape=[];const man=[];
   const cum=[0];for(let i=1;i<shape.length;i++)cum.push(cum[i-1]+dist(shape[i-1],shape[i]));
   return{shape,cum,man,sum:t.summary,enc:encode(shape)};
 }
+const ctyCache={};
+async function countryOf(ll){const k=ll[0].toFixed(2)+','+ll[1].toFixed(2);if(ctyCache[k])return ctyCache[k];
+  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),5000);
+  try{const j=await(await fetch(`https://photon.komoot.io/reverse?lat=${ll[0]}&lon=${ll[1]}&limit=1`,{signal:ctl.signal})).json();
+    const c=((j.features||[])[0]?.properties?.countrycode||'').toUpperCase();if(c)ctyCache[k]=c;return c}catch(e){return''}finally{clearTimeout(t)}}
 async function fetchRoutes(from,useHeading,wantAlts){
+  S.forceRoad=false;S.crossDE=false;S.deNote='';
+  if(settings.type==='snor'){const cs=await Promise.all([from,...S.vias.map(v=>v.ll),S.dest].map(countryOf));
+    if(cs.every(c=>c==='DE')){S.forceRoad=true;S.deNote='🇩🇪 In Duitsland via de rijbaan (Mofa-regel)'}
+    else if(cs.includes('DE')||(from[1]>5.85&&S.dest[1]>5.85&&cs.some(c=>!c))){S.crossDE=cs.includes('DE');if(S.crossDE)S.deNote='🇩🇪 In Duitsland geen fietspaden (Mofa-regel)'}}
   const loc0={lat:from[0],lon:from[1]};
   if(useHeading&&S.speed>8){loc0.heading=Math.round(S.heading);loc0.heading_tolerance=60}
   const body={locations:[loc0,...S.vias.map(v=>({lat:v.ll[0],lon:v.ll[1],type:'break'})),{lat:S.dest[0],lon:S.dest[1]}],
@@ -513,7 +522,8 @@ async function fetchRoutes(from,useHeading,wantAlts){
   if(bikeMode()){ // paden waar snorfietsen volgens OpenStreetMap niet mogen: uitsluiten en opnieuw rekenen
     try{const ways=await getNoSnorWays(bboxOf(routes));
       let bad=[];routes.forEach(r=>bad.push(...badPoints(r,ways)));
-      if(bad.length){body.exclude_locations=bad.slice(0,50).map(p=>({lat:p[0],lon:p[1]}));
+      if(bad.length){if(bad.length>50){const k=bad.length/50;bad=Array.from({length:50},(_,i)=>bad[Math.floor(i*k)])}
+        body.exclude_locations=bad.map(p=>({lat:p[0],lon:p[1]}));
         const j2=await post('/route',body);
         if(j2.trip){routes=[j2.trip,...(j2.alternates||[]).map(a=>a.trip).filter(Boolean)].map(parseTrip);routes.forEach(r=>r.warn=badPoints(r,ways).length>0)}
         else routes.forEach(r=>r.warn=true)}
@@ -523,14 +533,15 @@ async function fetchRoutes(from,useHeading,wantAlts){
 }
 function bboxOf(routes){let s=90,w=180,n=-90,e=-180;routes.forEach(r=>r.shape.forEach(([a,b])=>{s=Math.min(s,a);n=Math.max(n,a);w=Math.min(w,b);e=Math.max(e,b)}));return[s,w,n,e]}
 async function getNoSnorWays(bb){
-  const c=S.mofaCache;if(c&&c.bb[0]<=bb[0]&&c.bb[1]<=bb[1]&&c.bb[2]>=bb[2]&&c.bb[3]>=bb[3])return c.ways;
+  const c=S.mofaCache;if(c&&c.de===S.crossDE&&c.bb[0]<=bb[0]&&c.bb[1]<=bb[1]&&c.bb[2]>=bb[2]&&c.bb[3]>=bb[3])return c.ways;
   const m=.01,B=[bb[0]-m,bb[1]-m,bb[2]+m,bb[3]+m];if(B[2]-B[0]>0.6||B[3]-B[1]>0.9)return[];
   const box=B.map(x=>x.toFixed(5)).join(',');
-  const q=`[out:json][timeout:25];(way["mofa"="no"](${box});way["highway"~"^(footway|pedestrian|steps)$"]["mofa"!~"^(yes|designated)$"]["moped"!~"^(yes|designated)$"](${box}););out geom;`;
+  const de=S.crossDE?`way["highway"="cycleway"]["mofa"!~"^(yes|designated)$"](area.de)(${box});way["highway"="path"]["bicycle"="designated"]["mofa"!~"^(yes|designated)$"](area.de)(${box});`:'';
+  const q=`[out:json][timeout:25];${S.crossDE?'area["ISO3166-1"="DE"]["admin_level"="2"]->.de;':''}(way["mofa"="no"](${box});way["highway"~"^(footway|pedestrian|steps)$"]["mofa"!~"^(yes|designated)$"]["moped"!~"^(yes|designated)$"](${box});${de});out geom;`;
   const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),8000);
   try{const j=await(await fetch(OVERPASS,{method:'POST',body:q,signal:ctl.signal})).json();
     const ways=(j.elements||[]).map(w=>(w.geometry||[]).map(g=>[g.lat,g.lon])).filter(g=>g.length>1);
-    S.mofaCache={bb:B,ways};return ways}finally{clearTimeout(t)}
+    S.mofaCache={bb:B,ways,de:S.crossDE};return ways}finally{clearTimeout(t)}
 }
 function badPoints(rt,ways){
   if(!ways.length)return[];const pts=[];let last=-1e9;
@@ -624,7 +635,7 @@ function updatePvSum(){const r=S.routes[S.sel];if(!r)return;
 }
 
 function renderExtra(){if(!S.dest||!S.pos)return;
-  $('pvExtra').textContent=(S.routes[S.sel]?.warn?'⚠ Een stukje route gaat over een pad waar snorfietsen niet mogen · ':'')+`Hemelsbreed ${fmtD(dist(S.pos,S.dest))} ${compass(bearing(S.pos,S.dest))}`+(S.wx?' · '+S.wx:'')}
+  $('pvExtra').textContent=(S.deNote?S.deNote+' · ':'')+(S.routes[S.sel]?.warn?'⚠ Een stukje route gaat over een pad waar snorfietsen niet mogen · ':'')+`Hemelsbreed ${fmtD(dist(S.pos,S.dest))} ${compass(bearing(S.pos,S.dest))}`+(S.wx?' · '+S.wx:'')}
 async function fetchWeather(arr){
   const key=S.dest.join()+'|'+arr.getDate()+'-'+arr.getHours();if(S.wxKey===key)return;S.wxKey=key;S.wx='';renderExtra();
   try{const j=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${S.dest[0].toFixed(3)}&longitude=${S.dest[1].toFixed(3)}&hourly=precipitation,temperature_2m,wind_speed_10m&timezone=auto&forecast_days=3`)).json();
