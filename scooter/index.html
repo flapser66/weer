@@ -99,6 +99,8 @@ body.nav .sideBtn,body.preview .sideBtn,body.preview #recenter,body.preview #spe
 #toast{position:fixed;left:50%;transform:translateX(-50%);top:42%;z-index:40;background:rgba(0,0,0,.88);padding:12px 18px;border-radius:12px;font-size:15px;max-width:85vw;text-align:center}
 #offline{position:fixed;top:calc(74px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:12;background:#9a6700;padding:5px 12px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap}
 body.nav #offline{top:auto;bottom:calc(140px + env(safe-area-inset-bottom))}
+#tripDone{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:15;padding:16px}
+#tripDone b{white-space:nowrap}
 #resume{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:14;padding:16px}
 #shade{position:fixed;inset:0;z-index:24;background:rgba(0,0,0,.45)}
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:25;max-height:84vh;display:flex;flex-direction:column;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}
@@ -215,6 +217,14 @@ body.glove #top,body.glove #preview,body.glove #bar,body.glove #navMenu,body.glo
 <div id="resume" class="card hide">
   <div id="rsTxt" style="margin-bottom:12px;font-size:16px"></div>
   <div class="row" style="margin:0"><button class="btn" id="rsNo" style="flex:1">Nee</button><button class="btn go" id="rsYes">Hervatten</button></div>
+</div>
+<div id="tripDone" class="card hide">
+  <div id="tdTitle" style="font-size:17px;font-weight:700;margin-bottom:8px"></div>
+  <div style="color:#8b949e;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Je deed er over</div>
+  <div id="tdTime" style="font-size:40px;font-weight:800;line-height:1.1"></div>
+  <div id="tdCmp" style="color:#c9d1d9;font-size:14px;margin-bottom:6px"></div>
+  <div id="tdRows"></div>
+  <button class="btn go" id="tdOk" style="width:100%;margin-top:12px">OK</button>
 </div>
 <div id="shade" class="hide"></div>
 <div id="sheet" class="card hide">
@@ -341,16 +351,19 @@ if('geolocation' in navigator){
 function onPos(p){
   const c=p.coords,ll=[c.latitude,c.longitude],now=p.timestamp||Date.now();
   if(S.pos){const d=dist(S.pos,ll),dt=(now-S.lastT)/1000;
-    const sp=(c.speed!=null&&!isNaN(c.speed))?c.speed*3.6:(dt>0&&d>(c.accuracy||0)*0.5?d/dt*3.6:0);
+    let sp=(c.speed!=null&&!isNaN(c.speed))?c.speed*3.6:(dt>=0.8?(d>(c.accuracy||0)*0.5?d/dt*3.6:0):S.speed);
+    if(!(sp<150))sp=S.speed; // onmogelijke sprong (GPS-ruis) negeren
     S.speed=sp<2?0:S.speed*0.3+sp*0.7;
     let hd=null;
     if(c.heading!=null&&!isNaN(c.heading)&&S.speed>4)hd=c.heading;
     else if(S.speed>4&&d>Math.max(5,(c.accuracy||0)*0.5))hd=bearing(S.pos,ll);
     if(hd!=null)S.heading=(S.heading+angDiff(S.heading,hd)*0.6+360)%360;
   }else if(c.speed!=null&&!isNaN(c.speed))S.speed=c.speed*3.6;
+  const dtAll=S.lastT?Math.min(10,(now-S.lastT)/1000):0;
   S.lastT=now;S.lastFix=Date.now();S.pos=ll;S.acc=c.accuracy||0;
+  if(S.trip&&S.speed>3)S.trip.moving+=dtAll;
   if(S.acc<30){
-    if(S.lastOdoPos&&S.speed>3){const d=dist(S.lastOdoPos,ll);if(d<300){odo+=d;if(S.trip){S.trip.dist+=d;S.trip.max=Math.max(S.trip.max,S.speed)}}}
+    if(S.lastOdoPos&&S.speed>3){const d=dist(S.lastOdoPos,ll);if(d<300){odo+=d;if(S.trip){S.trip.dist+=d;if(S.acc<20&&S.speed<130)S.trip.max=Math.max(S.trip.max,S.speed)}}}
     S.lastOdoPos=ll;
   }
   if(Date.now()-(S.odoSaved||0)>20000){S.odoSaved=Date.now();store('sn_odo',odo)}
@@ -725,7 +738,7 @@ async function startNav(){
   ['instr','bar','prog'].forEach(i=>$(i).classList.remove('hide'));
   navLabels();drawRoute();
   try{AC=AC||new AudioContext();AC.resume()}catch(e){}
-  S.trip={start:Date.now(),dist:0,max:0,to:S.destName};S.etaF=1;S.etaS=[];
+  S.trip={start:Date.now(),dist:0,max:0,moving:0,planned:S.sum?.time||0,to:S.destName};S.etaF=1;S.etaS=[];
   store('sn_active',{dest:S.dest,name:S.destName,vias:S.vias,t:Date.now()});
   recents=recents.filter(r=>r.name!==S.destName);recents.unshift({name:S.destName,ll:S.dest});recents=recents.slice(0,5);store('sn_recent',recents);
   history.pushState({nav:1},'');
@@ -734,19 +747,31 @@ async function startNav(){
   S.announced[0]={far:1,near:1};
   if(S.pos){navTick();camera(true)}
 }
-function stopNav(){
+function stopNav(arrived){
   if(!S.navigating)return;
   S.navigating=false;S.dTo=null;
   try{S.wake?.release()}catch(e){}S.wake=null;
   store('sn_active',null);
-  if(S.trip&&S.trip.dist>100){const t=S.trip,min=(Date.now()-t.start)/60000;
-    trips.unshift({t:t.start,to:t.to,km:t.dist/1000,min,max:t.max});trips=trips.slice(0,50);store('sn_trips',trips)}
+  let done=null;
+  if(S.trip){const t=S.trip,min=(Date.now()-t.start)/60000;
+    done={t:t.start,end:Date.now(),to:t.to,km:t.dist/1000,min,max:t.max,moving:t.moving/60,planned:t.planned/60,arrived:!!arrived};
+    if(t.dist>100){trips.unshift(done);trips=trips.slice(0,50);store('sn_trips',trips)}}
   S.trip=null;store('sn_odo',odo);S.trail=[];
   document.body.classList.remove('nav');
   ['instr','iThen','bar','prog','curStreet','navMenu','camWarn'].forEach(i=>$(i).classList.add('hide'));
   ['top','speedIdle'].forEach(i=>$(i).classList.remove('hide'));
   clearRoute();checkService();
+  if(done&&(done.min>=1||done.km>0.1))showTripDone(done);
 }
+function tripLines(d){const diff=Math.round(d.min-d.planned),stil=Math.max(0,Math.round(d.min-d.moving));
+  return{diff,stil,avg:d.min>0?Math.round(d.km/(d.min/60)):0}}
+function showTripDone(d){closeSheet();const x=tripLines(d);
+  $('tdTitle').textContent=d.arrived?'🏁 Aangekomen in '+d.to:'Rit gestopt';
+  $('tdTime').textContent=fmtT(d.min*60);
+  $('tdCmp').textContent=d.planned?('Gepland '+fmtT(d.planned*60)+' · '+(Math.abs(x.diff)<1?'precies op tijd':x.diff>0?x.diff+' min langer':(-x.diff)+' min sneller')):'';
+  $('tdRows').innerHTML=[['Vertrek – aankomst',hm(new Date(d.t))+' – '+hm(new Date(d.end))],['Afstand',nl1(d.km)+' km'],['Rijtijd',fmtT(d.moving*60)+(x.stil?' · '+x.stil+' min stilgestaan':'')],
+    ['Gemiddelde snelheid',x.avg+' km/u'],['Hoogste snelheid',Math.round(d.max)+' km/u']].map(r=>`<div class="opt"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+  $('tripDone').classList.remove('hide')}
 document.addEventListener('visibilitychange',async()=>{if(S.navigating&&document.visibilityState==='visible'){try{S.wake=await navigator.wakeLock?.request('screen')}catch(e){}}});
 $('menuBtn').onclick=()=>$('navMenu').classList.toggle('hide');
 $('mStop').onclick=()=>{clearTimeout(S.sayT);try{speechSynthesis.cancel()}catch(e){}stopNav()};
@@ -829,7 +854,7 @@ function navTick(){
   if(isVia&&dTo<25&&!an.via){an.via=1;const v=S.vias.shift();toast('📍 Tussenstop bereikt'+(v?': '+v.name:''),3000);
     store('sn_active',{dest:S.dest,name:S.destName,vias:S.vias,t:Date.now()})}
   if(remain<25||(isFinal&&dTo<20)){
-    instr('Je bent op je bestemming');toast('🏁 Bestemming bereikt',3500);stopNav();
+    instr('Je bent op je bestemming');stopNav(true);
   }
 }
 async function reroute(force){
@@ -973,7 +998,7 @@ function openHist(back){
 function openTrips(back){
   const tot=trips.reduce((a,t)=>a+t.km,0);
   listSheet('Ritten',trips.map(t=>['🛵',esc(t.to),
-    `${new Date(t.t).toLocaleString('nl-NL',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${Math.round(t.min)} min · gem. ${t.min>0?Math.round(t.km/(t.min/60)):0} km/u · max ${Math.round(t.max)} km/u`,null,nl1(t.km)+' km']),
+    `${new Date(t.t).toLocaleString('nl-NL',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${fmtT(t.min*60)}${t.planned?' (gepland '+fmtT(t.planned*60)+')':''} · gem. ${t.min>0?Math.round(t.km/(t.min/60)):0} km/u · max ${Math.round(t.max)} km/u`,()=>showTripDone(t),nl1(t.km)+' km']),
     (trips.length?`<div class="sec">Totaal</div><div class="li"><div class="tx">${trips.length} ritten · ${nl1(tot)} km</div></div><button class="btn" id="clrTrips" style="width:100%;margin-top:10px">Ritten wissen</button>`
       :'<div class="li"><div class="tx">Nog geen ritten.<small>Een rit wordt opgeslagen als je met navigatie rijdt (vanaf 100 m).</small></div></div>'),back);
   const b=$('clrTrips');if(b)b.onclick=()=>{if(b.dataset.c){trips=[];store('sn_trips',trips);openTrips(back)}else{b.dataset.c=1;b.textContent='Zeker weten? Tik nogmaals';b.style.background='#da3633'}};
@@ -1067,7 +1092,9 @@ applyBright();renderChips();navLabels();checkService();
 setTimeout(()=>{if(!S.lastFix)toast('Geen locatie ontvangen. Sta Locatie (precies) toe voor deze app in je Android-instellingen.',8000)},8000);
 
 const act=load('sn_active',null);
+$('mStop').onclick=()=>{clearTimeout(S.sayT);try{speechSynthesis.cancel()}catch(e){}stopNav(false)};
 if(act&&act.dest&&Date.now()-act.t<6*3600e3){$('rsTxt').textContent='Navigatie naar '+act.name+' hervatten?';$('resume').classList.remove('hide')}
+$('tdOk').onclick=()=>$('tripDone').classList.add('hide');
 $('rsNo').onclick=()=>{store('sn_active',null);$('resume').classList.add('hide')};
 $('rsYes').onclick=()=>{$('resume').classList.add('hide');S.autoStart=true;try{AC=AC||new AudioContext()}catch(e){}$('q').value=act.name;setDest(act.dest,act.name,act.vias||[])};
 const go=new URLSearchParams(location.search).get('go');
