@@ -355,7 +355,7 @@ function onPos(p){
   }
   if(Date.now()-(S.odoSaved||0)>20000){S.odoSaved=Date.now();store('sn_odo',odo)}
   const sp=Math.round(S.speed);$('spd').textContent=sp;$('spdIdle').textContent=sp;
-  const ga=$('gpsAcc');ga.textContent='GPS ±'+Math.round(S.acc)+' m';ga.classList.remove('hide');ga.classList.toggle('bad',S.acc>30);
+  const ga=$('gpsAcc');ga.textContent='GPS ±'+Math.round(S.acc)+' m';ga.classList.remove('hide');ga.classList.toggle('bad',S.acc>50);
   if(S.acc>500&&!S.warnedAcc){S.warnedAcc=1;toast('Locatie is onnauwkeurig: zet "Precieze locatie" aan in je Android-instellingen',5000)}
   meMarker.setLngLat([ll[1],ll[0]]).setRotation(S.heading);
   if(!meAdded){meMarker.addTo(map);meAdded=true}
@@ -1038,7 +1038,10 @@ addEventListener('deviceorientationabsolute',e=>{
   const hd=(360-e.alpha+(screen.orientation?.angle||0))%360;S.heading=(S.heading+angDiff(S.heading,hd)*0.3+360)%360;if(meAdded)meMarker.setRotation(S.heading)});
 setInterval(()=>{
   if(!S.autoTried&&map.getSource('openmaptiles')?.tiles&&(S.pos||places.some(p=>p.name==='Thuis')))autoOffline();
-  if(S.lastFix&&Date.now()-S.lastFix>10000){const ga=$('gpsAcc');ga.textContent='GPS-signaal kwijt';ga.classList.add('bad')}
+  if(S.lastFix&&Date.now()-S.lastFix>10000&&!S.probing&&'geolocation' in navigator){ // stilstaan: Android stuurt dan vaak niets → zelf opvragen
+    S.probing=true;navigator.geolocation.getCurrentPosition(p=>{S.probing=false;S.gpsFail=0;onPos(p)},
+      ()=>{S.probing=false;S.gpsFail=(S.gpsFail||0)+1;if(S.gpsFail>=2&&Date.now()-S.lastFix>25000){const ga=$('gpsAcc');ga.textContent='GPS-signaal kwijt';ga.classList.add('bad')}},
+      {enableHighAccuracy:true,maximumAge:5000,timeout:9000})}
   if(settings.theme==='auto')applyTheme();
 },5000);
 addEventListener('popstate',()=>{
