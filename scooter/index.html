@@ -235,7 +235,7 @@ function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- instellingen & opslag ---------- */
-const DEF={type:'snor',chime:'ding',quiet:false,ferry:true,unpaved:false,living:false,cams:true,voice:true,beep:true,rate:1.05,vol:1,warn:'normaal',
+const DEF={type:'snor',chime:'ding',autoDl:true,idleLimit:true,quiet:false,ferry:true,unpaved:false,living:false,cams:true,voice:true,beep:true,rate:1.05,vol:1,warn:'normaal',
   theme:'auto',bright:100,view3d:true,orient:'heading',glove:false,svcKm:2000,svcLast:null,odoOffset:0};
 const settings=Object.assign({},DEF,load('sn_set',{}));
 const saveSet=()=>store('sn_set',settings);
@@ -388,6 +388,7 @@ async function overpassLimit(ll){ // reserve: dichtstbijzijnde weg met maxspeed-
   return best&&best.d<=120?best:null;
 }
 async function idleLimit(ll){
+  if(!settings.idleLimit){if(S.roadLimit){S.roadLimit=0;showIdleLimit()}return}
   S.trail=(S.trail||[]);if(S.acc<30){S.trail.push(ll);if(S.trail.length>6)S.trail.shift()}
   showIdleLimit();
   if(S.limBusy||!navigator.onLine)return;
@@ -893,6 +894,7 @@ function openSettings(back){
     SEG('Afslagen aankondigen','warn',[['vroeg','Vroeg'],['normaal','Normaal'],['laat','Laat']])+
     '<button class="btn" id="testVoice" style="width:100%;margin-top:12px">▶ Test geluid en stem</button>'+
     '<div class="sec">Bediening</div>'+SW('Handschoenmodus','glove','Grotere knoppen en tekst')+
+    '<div class="sec">Internet</div>'+SW('Maximumsnelheid zonder route','idleLimit','Zoekt tijdens het rijden zonder route de snelheid van de weg op (± 1 MB per uur)')+
     '<div style="color:#8b949e;font-size:12px;margin-top:12px">Let op: Android regelt het volume van de stem soms zelf; gebruik dan de volumeknoppen van je telefoon.</div>',back);
   bindOpts(k=>{if(k==='vol')$('rv_vol').textContent=Math.round(settings.vol*100)+'%';
     if(k==='glove')document.body.classList.toggle('glove',settings.glove);
@@ -981,15 +983,17 @@ function openOffline(back){
     ['📍','10 km rond mijn locatie','± 5–15 MB',()=>downloadArea(10)],
     ['🗺','25 km rond mijn locatie','± 30–60 MB · doe dit op wifi',()=>downloadArea(25)],
     ...(S.shape.length?[['🛣','Langs mijn huidige route','',()=>downloadArea('route')]]:[])],
+    SW('Elke week automatisch bijwerken','autoDl','25 km rond Thuis (of je locatie), alleen op wifi'+(+load('sn_autoDl',0)?' · laatst '+new Date(+load('sn_autoDl',0)).toLocaleDateString('nl-NL',{day:'numeric',month:'short'}):''))+
     '<div id="dlProg" style="color:#9aa4ae;font-size:13px;margin-top:12px">Kaarten langs een geplande route worden ook automatisch opgeslagen. Route berekenen en adressen zoeken blijven internet nodig hebben. Houd dit scherm open tijdens het downloaden.</div>',back);
+  bindOpts(()=>{});
 }
-async function downloadArea(kind){
-  if(S.dl){toast('Download is al bezig');return}
-  const tpl=map.getSource('openmaptiles')?.tiles?.[0];if(!tpl){toast('Kaart is nog niet geladen');return}
-  if(!navigator.onLine){toast('Geen internet');return}
+async function downloadArea(kind,center,silent){
+  if(S.dl){if(!silent)toast('Download is al bezig');return false}
+  const tpl=map.getSource('openmaptiles')?.tiles?.[0];if(!tpl){if(!silent)toast('Kaart is nog niet geladen');return false}
+  if(!navigator.onLine){if(!silent)toast('Geen internet');return false}
   const keys=new Set();
   if(kind==='route'){for(const z of[10,11,12,13,14])for(const[la,lo]of S.shape){const[x,y]=tileXY(la,lo,z);for(const dx of[-1,0,1])for(const dy of[-1,0,1])keys.add(z+'/'+(x+dx)+'/'+(y+dy))}}
-  else{const c=S.pos||[map.getCenter().lat,map.getCenter().lng],dLa=kind/111,dLo=kind/(111*Math.cos(rad(c[0])));
+  else{const c=center||S.pos||[map.getCenter().lat,map.getCenter().lng],dLa=kind/111,dLo=kind/(111*Math.cos(rad(c[0])));
     for(const z of[8,9,10,11,12,13,14]){const[x1,y1]=tileXY(c[0]+dLa,c[1]-dLo,z),[x2,y2]=tileXY(c[0]-dLa,c[1]+dLo,z);
       for(let x=x1;x<=x2;x++)for(let y=y1;y<=y2;y++)keys.add(z+'/'+x+'/'+y)}}
   const urls=[...keys].map(k=>{const[z,x,y]=k.split('/');return tpl.replace('{z}',z).replace('{x}',x).replace('{y}',y)});
@@ -1003,10 +1007,19 @@ async function downloadArea(kind){
   S.dl=true;let done=0,fail=0,i=0;
   const prog=()=>{const el=$('dlProg');if(el)el.textContent=`Downloaden… ${done} / ${urls.length}`};prog();
   const w=async()=>{while(i<urls.length&&S.dl){const u=urls[i++];try{const r=await fetch(u);if(!r.ok)fail++}catch(e){fail++}done++;if(done%10===0)prog()}};
-  await Promise.all([1,2,3,4,5,6].map(w));
+  await Promise.all((silent?[1,2,3]:[1,2,3,4,5,6]).map(w));
   const stopped=done<urls.length;S.dl=false;
   const el=$('dlProg');if(el)el.textContent=stopped?`Gestopt na ${done} van ${urls.length} onderdelen`:`Klaar ✔ ${done-fail} onderdelen opgeslagen${fail?` (${fail} mislukt)`:''}`;
-  toast(stopped?'Download gestopt':'Kaart offline opgeslagen ✔');
+  if(!silent)toast(stopped?'Download gestopt':'Kaart offline opgeslagen ✔');
+  return !stopped&&fail<urls.length*0.1;
+}
+async function autoOffline(){ // 1x per week, op wifi, 25 km rond Thuis (of je locatie)
+  if(!settings.autoDl||!navigator.onLine||S.navigating)return;
+  if(Date.now()-(+load('sn_autoDl',0))<7*864e5)return;
+  const ct=navigator.connection;if(ct&&(ct.type==='cellular'||ct.saveData))return;
+  const home=places.find(p=>p.name==='Thuis'),c=home?home.ll:S.pos;if(!c)return;
+  S.autoTried=true;
+  if(await downloadArea(25,c,true)){store('sn_autoDl',Date.now());toast('Kaart rond '+(home?'huis':'je locatie')+' offline bijgewerkt ✔',2500)}
 }
 function openAbout(back){openSheet('Over deze app',`<div style="font-size:14px;line-height:1.5;color:#c9d1d9;padding-top:8px">
   <b>Scooter Navigatie</b><br>Kaart: OpenFreeMap / © OpenStreetMap-bijdragers<br>Routes & maximumsnelheden: Valhalla (FOSSGIS)<br>Adressen: Photon (Komoot)<br>Flitspalen & plekken: OpenStreetMap via Overpass<br>Weer: Open-Meteo<br><br>
@@ -1024,6 +1037,7 @@ addEventListener('deviceorientationabsolute',e=>{
   if(e.alpha==null||S.speed>4||Date.now()-(S.lastComp||0)<250)return;S.lastComp=Date.now();
   const hd=(360-e.alpha+(screen.orientation?.angle||0))%360;S.heading=(S.heading+angDiff(S.heading,hd)*0.3+360)%360;if(meAdded)meMarker.setRotation(S.heading)});
 setInterval(()=>{
+  if(!S.autoTried&&map.getSource('openmaptiles')?.tiles&&(S.pos||places.some(p=>p.name==='Thuis')))autoOffline();
   if(S.lastFix&&Date.now()-S.lastFix>10000){const ga=$('gpsAcc');ga.textContent='GPS-signaal kwijt';ga.classList.add('bad')}
   if(settings.theme==='auto')applyTheme();
 },5000);
